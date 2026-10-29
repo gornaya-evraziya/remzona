@@ -69,6 +69,17 @@ h2 .n.red { background: var(--red); color: #fff; }
 .shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
   justify-content: space-between; align-items: center; font-size: 15px; }
 .shift small { opacity: .75; font-size: 15px; }
+.shift .site { border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.08); color: inherit; border-radius: 999px;
+  font-size: 14px; font-weight: 600; padding: 0 12px; min-height: 36px; margin: -6px -6px -6px 8px; cursor: pointer; white-space: nowrap; }
+.shift .site::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 3px 8px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .7; }
+.seg.two { grid-template-columns: 1fr 1fr; }
+.seg.two button { font-size: 16px; }
+.sitepick { display: grid; gap: 10px; margin: 8px 0 12px; }
+.sitepick button { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 0 16px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--card); color: var(--strong); font-size: 18px; font-weight: 600; cursor: pointer; }
+.sitepick button.on { border-color: var(--graphite); box-shadow: inset 0 0 0 1px var(--graphite); }
+.sitepick button.on::after { content: "✓"; color: var(--red); font-size: 20px; }
 .big { width: 100%; border: 0; border-radius: 14px; background: var(--red); color: #fff; font-size: 19px; font-weight: 600;
   min-height: 58px; padding: 14px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(195,0,19,.25); }
 .big:active { transform: scale(.99); filter: brightness(.95); }
@@ -229,6 +240,8 @@ const SB_URL = "https://inprxlthecccuvkjpvpo.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHJ4bHRoZWNjY3V2a2pwdnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzM1MjYsImV4cCI6MjEwODgwOTUyNn0.IucSKrdhmzzSze-VEn2Za7Bmy2BvYTeCKnnEs6LPfjs";
 const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
 const WAITS = ["Нет водителя", "Распоряжение диспетчера", "Пересменка / обед"];   // готова, ждёт не по нашей вине; + «Другое» текстом
+// участки: каждый видит работы своего участка (ограничение на сервере), участок меняет сам; в книгу Excel -- только Благодатный
+const SITES = ["Благодатный", "Восточный"], EXCEL_SITE = "Благодатный";
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
 
@@ -433,6 +446,7 @@ function renderLogin() {
     app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Регистрация</h1>
       <p class="sub">По приглашению администратора — вход сразу после регистрации.</p>
       <label class="f" style="text-align:left">Код приглашения</label><input class="inp" id="sCode" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="Из ссылки администратора" style="text-transform:uppercase;letter-spacing:.2em">
+      <label class="f" style="text-align:left">Участок</label><div class="seg two" id="sSite">${SITES.map((s) => `<button class="${L.site === s ? "on" : ""}" data-act="ssite" data-v="${s}">${s}</button>`).join("")}</div>
       <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="sName" autocomplete="off" placeholder="Иванов И.И.">
       <label class="f" style="text-align:left">Придумайте PIN — 4 цифры</label><input class="inp" id="sPin" inputmode="numeric" maxlength="4" type="password">
       <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="sPin2" inputmode="numeric" maxlength="4" type="password">
@@ -470,11 +484,12 @@ async function signup() {
   const code = $("#sCode").value.trim().toUpperCase();
   const err = (m) => { $("#lerr").textContent = m; };
   if (code.length !== 6) return err("Код приглашения — 6 знаков из ссылки администратора");
+  if (!L.site) return err("Выберите участок");
   if (name.length < 3) return err("Укажите фамилию и инициалы");
   if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
   if (pin !== pin2) return err("PIN не совпадает");
   err("Регистрирую…");
-  const r = await callAdmin({ action: "signup", name, pin, code });
+  const r = await callAdmin({ action: "signup", name, pin, code, site: L.site });
   if (r.error) return err(r.error);
   // доступ открыт сразу -- входим тем же PIN
   L.pick = { name, login: r.login, role: "mechanic" }; L.mode = ""; L.code = ""; L.pin = pin;
@@ -529,7 +544,7 @@ function card(j, opts = {}) {
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
   const b = [];
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
-  if (isAdmin() && !j.pending) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
+  if (isAdmin() && !j.pending && j.site === EXCEL_SITE) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
   if (isNew) b.push(`<span class="badge red">новое</span>`);
   if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
@@ -552,7 +567,7 @@ function render() {
   if (!S.me) return;
   const js = allJobs(), sh = shiftOf();
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
-  const head = `<div class="shift"><span>${shiftText(sh)}</span><small>${hm(new Date())}</small></div>`;
+  const head = `<div class="shift"><span>${shiftText(sh)} <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
@@ -563,23 +578,30 @@ function render() {
       <h2>Мои выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
   } else {
     const nc = newCount();
-    const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
+    const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
     $("#nav").innerHTML = nav.map(([k, t, ic, n, c]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${svg(ic)}${t}${n ? `<span class="n ${c}">${n}</span>` : ""}</button>`).join("");
     if (S.tab === "feed") {
       const feed = [...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-      const notIn = js.filter((j) => j.rev > j.imported_rev).length;
+      const notIn = js.filter((j) => j.site === EXCEL_SITE && j.rev > j.imported_rev).length;
       h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
         ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
         ${"Notification" in window && Notification.permission === "default" ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
-        <span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span></div>
+        ${S.me.site === EXCEL_SITE ? `<span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span>` : ""}</div>
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
       h += `${head}<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
     } else if (S.tab === "staff") {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
+      // участок: администратор видит людей своего участка, владелец -- ещё и другого (отдельным списком)
       const own = !!S.me.owner, mine = (s) => s.id === S.me.id || s.role === "mechanic";
-      const reqs = S.staff.filter((s) => s.pending);
+      const here = (s) => (s.site || EXCEL_SITE) === S.me.site, others = S.staff.filter((s) => !s.pending && !here(s));
+      const reqs = S.staff.filter((s) => s.pending && here(s));
+      const row = (s) => `<div class="${s.active ? "" : "off"}">
+          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${here(s) ? "" : " · " + esc(s.site)}${s.active ? "" : " · отключён"}</small></span>
+          ${own ? `<button class="btn small" data-act="staff" data-id="${s.id}">Изменить</button>` : `
+          ${mine(s) ? `<button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>` : ""}
+          ${s.id !== S.me.id && mine(s) ? `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>` : ""}`}</div>`;
       h += `<div class="hint"><span class="grow">${S.invite
           ? `Приглашение · код <b style="letter-spacing:.12em">${esc(S.invite)}</b><br><small style="color:var(--muted)">По ссылке сотрудник зарегистрируется сам · <button class="link" data-act="newcode" style="font-size:inherit;padding:0;margin:0">новый код</button></small>`
           : `Ссылка-приглашение — каждый сотрудник зарегистрируется сам`}</span>
@@ -588,11 +610,8 @@ function render() {
           <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">механик · ждёт подтверждения</small></span>
           <button class="btn small red" data-act="approve" data-id="${s.id}">Принять</button>
           <button class="btn small" data-act="reject" data-id="${s.id}">Отклонить</button></div>`).join("")}</div>` : ""}
-        <h2>Сотрудники</h2><div class="list">${S.staff.filter((s) => !s.pending).map((s) => `<div class="${s.active ? "" : "off"}">
-          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${s.active ? "" : " · отключён"}</small></span>
-          ${own ? `<button class="btn small" data-act="staff" data-id="${s.id}">Изменить</button>` : `
-          ${mine(s) ? `<button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>` : ""}
-          ${s.id !== S.me.id && mine(s) ? `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>` : ""}`}</div>`).join("") || `<div>Нет сотрудников</div>`}</div>
+        <h2>Сотрудники · ${esc(S.me.site)}</h2><div class="list">${S.staff.filter((s) => !s.pending && here(s)).map(row).join("") || `<div>Нет сотрудников</div>`}</div>
+        ${own && others.length ? `<h2>Другой участок</h2><div class="list">${others.map(row).join("")}</div>` : ""}
         <h2>Добавить сотрудника</h2>
         <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="nsName" placeholder="Метелкин А.В.">
         <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button>${own ? `<button class="chip" data-act="role" data-v="admin">Администратор</button>` : ""}</div>
@@ -717,11 +736,13 @@ async function callAdmin(body) {
 // карточка сотрудника -- только у владельца: ФИО, роль, PIN, отключение, удаление
 function openStaff(id) {
   const s = S.staff.find((x) => x.id === id), self = s.id === S.me.id;
-  S.edit = { staff: s, role: s.role };
+  S.edit = { staff: s, role: s.role, site: s.site };
   $("#panel").innerHTML = `<div class="head"><b>${esc(s.name)}</b>${s.owner ? `<span class="badge">владелец</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
     <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="seName" value="${esc(s.name)}">
     <label class="f">Роль</label><div class="chips" id="seRole">${[["mechanic", "Механик"], ["admin", "Администратор"]].map(([v, t]) =>
       `<button class="chip ${s.role === v ? "on" : ""}" data-act="serole" data-v="${v}" ${self ? "disabled" : ""}>${t}</button>`).join("")}</div>
+    <label class="f">Участок</label><div class="chips" id="seSite">${SITES.map((v) =>
+      `<button class="chip ${s.site === v ? "on" : ""}" data-act="sesite" data-v="${v}">${v}</button>`).join("")}</div>
     <div class="actions"><button class="btn red" data-act="savestaff">Сохранить</button></div>
     <h2>Доступ</h2>
     <div class="row"><button class="btn" data-act="pin" data-id="${s.id}">Новый PIN</button>
@@ -729,6 +750,23 @@ function openStaff(id) {
     ${self ? "" : `<h2>Удаление</h2><div style="font-size:14px;color:var(--muted)">Учётная запись удаляется насовсем. Записи о работах остаются с его фамилией.</div>
       <div class="actions"><button class="btn" style="color:var(--red);border-color:var(--red)" data-act="delstaff">Удалить сотрудника</button></div>`}`;
   $("#sheet").hidden = false;
+}
+// участок: кнопка в полосе смены; работы и уведомления приходят только своего участка (ограничение на сервере)
+function openSite() {
+  $("#panel").innerHTML = `<div class="head"><b>Участок</b><button class="iconbtn" data-act="close">✕</button></div>
+    <div style="font-size:14px;color:var(--muted)">Работы и уведомления — только своего участка. Перевели на другой — выберите его здесь.</div>
+    <div class="sitepick">${SITES.map((v) => `<button class="${S.me.site === v ? "on" : ""}" data-act="setsite" data-v="${v}">${v}</button>`).join("")}</div>`;
+  $("#sheet").hidden = false;
+}
+async function moveSite(site, saved) {
+  if (!saved) {
+    if (S.queue.length) return toast(`Сначала дождитесь отправки записей: ${S.queue.length}`, true);
+    const { error } = await sb.rpc("set_my_site", { p_site: site });
+    if (error) return toast(netErr(error) ? "Нет связи с сервером" : error.message, true);
+  }
+  S.me.site = site; save("rz_me", S.me);
+  try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
+  render(); toast("Участок: " + site);
 }
 async function reloadStaff() { const r = await sb.from("staff").select("*").order("role", { ascending: false }).order("name"); if (!r.error) S.staff = r.data; render(); }
 const randPin = () => String(Math.floor(1000 + Math.random() * 9000));
@@ -805,10 +843,16 @@ document.addEventListener("click", async (ev) => {
     case "serole": S.edit.role = t.dataset.v; document.querySelectorAll("#seRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "savestaff": { const s = S.edit.staff, name = $("#seName").value.trim();
       if (!name) return toast("Укажите фамилию", true);
-      t.disabled = true; const r = await callAdmin({ action: "update", id: s.id, name, role: S.edit.role }); t.disabled = false;
+      t.disabled = true; const r = await callAdmin({ action: "update", id: s.id, name, role: S.edit.role, site: S.edit.site }); t.disabled = false;
       if (r.error) return toast(r.error, true);
       if (s.id === S.me.id) { S.me.name = name; save("rz_me", S.me); $("#whoName").textContent = name; }
-      toast(`${name}: сохранено`); closeSheet(); reloadStaff(); break; }
+      toast(`${name}: сохранено`); closeSheet();
+      if (s.id === S.me.id && S.edit.site !== S.me.site) await moveSite(S.edit.site, true); else reloadStaff();
+      break; }
+    case "sesite": S.edit.site = t.dataset.v; document.querySelectorAll("#seSite .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "ssite": L.site = t.dataset.v; document.querySelectorAll("#sSite button").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "site": openSite(); break;
+    case "setsite": closeSheet(); if (t.dataset.v !== S.me.site) moveSite(t.dataset.v); break;
     case "delstaff": { const s = S.edit.staff;
       if (!confirm(`Удалить «${s.name}» насовсем? Войти он больше не сможет, восстановить нельзя.`)) return;
       t.disabled = true; const r = await callAdmin({ action: "delete", id: s.id }); t.disabled = false;
