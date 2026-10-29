@@ -65,6 +65,7 @@ main { max-width: 720px; margin: 0 auto; padding: 12px 16px 120px; }
 h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 22px 0 10px;
   display: flex; align-items: center; gap: 8px; }
 h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 10px; padding: 0 8px; font-size: 13px; letter-spacing: 0; }
+h2 .n.red { background: var(--red); color: #fff; }
 .shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
   justify-content: space-between; align-items: center; font-size: 15px; }
 .shift small { opacity: .75; font-size: 15px; }
@@ -86,6 +87,8 @@ h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 1
 .card .top { display: flex; gap: 8px; align-items: baseline; }
 .card .kind { font-weight: 700; color: var(--strong); flex: none; }
 .card .mech { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .crew { margin-left: auto; flex: none; display: flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.card .crew svg { width: 16px; height: 16px; }
 .card .st { font-size: 15px; font-weight: 600; margin-top: 3px; }
 .card .st.open { color: var(--red); } .card .st.done { color: var(--green); } .card .st.wait { color: var(--amber); }
 .card .st span { font-size: 14px; font-weight: 400; color: var(--muted); }
@@ -137,6 +140,12 @@ textarea.inp { min-height: 74px; resize: vertical; }
 .gars button { min-height: 48px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; }
 .gars button.busy { border-color: var(--red); color: var(--red); background: var(--red-soft); }
 .gars button.on { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.seg { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+.seg button { border: 0; border-left: 1px solid var(--line2); background: none; min-height: 46px; font-size: 17px; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s; }
+.seg button:first-child { border-left: 0; }
+.seg button.on { background: var(--graphite); color: var(--on-graphite); }
+.seg button:disabled { opacity: .55; }
 .timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
 .warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-top: 8px; }
 details.more { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 0 12px; }
@@ -166,6 +175,26 @@ details.more label.f:first-of-type { margin-top: 0; }
 .pad button { border: 1px solid var(--line); background: var(--card); border-radius: 16px; min-height: 62px; font-size: 25px; cursor: pointer; }
 .pad button:active { background: var(--press); }
 .err { color: var(--red); min-height: 22px; margin-top: 10px; font-size: 15px; }
+.login .sub { color: var(--muted); font-size: 15px; margin: -8px 0 6px; }
+.link { border: 0; background: none; color: var(--muted); font-size: 15px; padding: 10px; margin-top: 6px; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.done { width: 72px; height: 72px; margin: 28px auto 8px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--green-soft); color: var(--green); animation: pop .45s cubic-bezier(.2,.8,.2,1.2) both; }
+.done svg.i { width: 36px; height: 36px; stroke-width: 2.4; }
+@keyframes pop { from { transform: scale(.6); opacity: 0; } }
+/* заставка при запуске: логотип проявляется, под ним бежит тонкая красная полоса */
+#splash { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg);
+  transition: opacity .4s ease, visibility .4s; }
+#splash.out { opacity: 0; visibility: hidden; }
+#splash .sp { display: grid; justify-items: center; gap: 20px; animation: spIn .7s cubic-bezier(.2,.7,.2,1) both; }
+#splash img { height: 34px; }
+#splash .bar { position: relative; width: 132px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+#splash .bar i { position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: 2px; background: var(--red);
+  animation: spRun 1.1s cubic-bezier(.65,0,.35,1) infinite; }
+#splash .t { font-size: 12px; letter-spacing: .32em; padding-left: .32em; text-transform: uppercase; color: var(--muted); }
+@keyframes spIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes spRun { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { #splash .sp, #splash .bar i, .done { animation: none; } }
 #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
   display: grid; gap: 6px; width: min(92vw, 520px); pointer-events: none; }
 #nav:not([hidden]) ~ #toast { bottom: calc(74px + env(safe-area-inset-bottom)); }
@@ -186,7 +215,8 @@ details.more label.f:first-of-type { margin-top: 0; }
   <button class="iconbtn" data-act="theme" id="themeBtn"></button>
   <button class="iconbtn" data-act="logout" id="outBtn" title="Выйти"></button>
 </header>
-<main id="app"><div class="login"><img class="logo" src="logo.png" alt=""><h1>Ремзона ГЕ</h1><p>Загрузка…</p></div></main>
+<div id="splash" aria-hidden="true"><div class="sp"><img class="logo" src="logo.png" alt=""><div class="bar"><i></i></div><div class="t">Ремзона</div></div></div>
+<main id="app"></main>
 <div id="sheet" hidden><div class="panel" id="panel"></div></div>
 <nav id="nav" hidden></nav>
 <div id="toast"></div>
@@ -246,6 +276,7 @@ const ICON = {
   out: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   feed: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
   people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
@@ -263,6 +294,13 @@ function applyTheme() {
   document.querySelector('meta[name="theme-color"]').content = dark ? "#1E1E1E" : "#FFFFFF";
 }
 darkMQ.addEventListener?.("change", applyTheme);
+
+// ---------- заставка: убрать после первого экрана, но не раньше 0,9 с от открытия (анимация успевает пройти) ----------
+function hideSplash() {
+  const el = $("#splash"); if (!el || el.classList.contains("out")) return;
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(0, 900 - performance.now()));
+}
+setTimeout(hideSplash, 8000);   // страховка, если связь зависла
 
 // ---------- уведомления ----------
 function toast(msg, bad) {
@@ -356,7 +394,9 @@ function subscribe() {
 // ---------- вход ----------
 // списка сотрудников на странице нет: фамилию вводят, сервер отдаёт только совпадения (login_find)
 localStorage.removeItem("rz_logins"); localStorage.removeItem("rz_last");
-let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "" };
+// ссылка «…/?join» сразу открывает регистрацию (её администратор рассылает сотрудникам)
+let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "",
+  mode: new URLSearchParams(location.search).has("join") && !load("rz_pick", null) ? "signup" : "" };
 async function showLogin(msg) {
   S.me = null; $("#top").hidden = true; $("#nav").hidden = true; document.title = "Ремзона ГЕ";
   L.err = msg || ""; L.pin = ""; L.found = [];
@@ -376,7 +416,7 @@ async function findName() {
   renderLogin();
 }
 function renderLogin() {
-  const app = $("#app");
+  const app = $("#app"); hideSplash();
   if (L.first) {
     app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Первый запуск</h1>
       <p style="color:var(--muted);font-size:15px">Создайте учётную запись сервисного администратора. Механиков он добавит сам.</p>
@@ -386,11 +426,28 @@ function renderLogin() {
       <button class="big" data-act="bootstrap">Создать администратора</button><div class="err" id="lerr"></div></div>`;
     return;
   }
+  if (L.mode === "signup") {
+    app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Регистрация</h1>
+      <p class="sub">Заполните данные — администратор подтвердит доступ.</p>
+      <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="sName" autocomplete="off" placeholder="Иванов И.И.">
+      <label class="f" style="text-align:left">Придумайте PIN — 4 цифры</label><input class="inp" id="sPin" inputmode="numeric" maxlength="4" type="password">
+      <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="sPin2" inputmode="numeric" maxlength="4" type="password">
+      <button class="big" data-act="signup">Отправить заявку</button><div class="err" id="lerr"></div>
+      <button class="link" data-act="tologin">Уже есть учётная запись — войти</button></div>`;
+    return;
+  }
+  if (L.mode === "sent") {
+    app.innerHTML = `<div class="login"><div class="done">${svg(ICON.check)}</div><h1>Заявка отправлена</h1>
+      <p class="sub">Когда администратор подтвердит доступ, откройте приложение и введите свой PIN.</p>
+      <button class="big" data-act="tologin">Ко входу</button></div>`;
+    return;
+  }
   if (!L.pick) {
     const names = L.found.length > 1 ? `<div class="names">${L.found.map((x) => `<button data-act="pick" data-login="${esc(x.login)}">${esc(x.name)}<small>›</small></button>`).join("")}</div>` : "";
     app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Ремзона ГЕ — вход</h1>
       <label class="f" style="text-align:left">Фамилия</label><input class="inp" id="lName" autocomplete="off" placeholder="Например, Иванов">
-      <button class="big" data-act="find">Далее</button>${names}<div class="err">${esc(L.err)}</div></div>`;
+      <button class="big" data-act="find">Далее</button>${names}<div class="err">${esc(L.err)}</div>
+      <button class="link" data-act="tosignup">Нет учётной записи? Зарегистрироваться</button></div>`;
     $("#lName").value = L.q;
     return;
   }
@@ -408,6 +465,18 @@ async function tryPin() {
   if (error) { L.pin = ""; L.err = /invalid/i.test(error.message) ? "Неверный PIN" : netErr(error) ? "Нет связи с сервером" : error.message; renderLogin(); return; }
   save("rz_pick", p); L.pin = ""; L.err = "";
   await enter();
+}
+async function signup() {
+  const name = $("#sName").value.trim().replace(/\s+/g, " "), pin = $("#sPin").value.trim(), pin2 = $("#sPin2").value.trim();
+  const err = (m) => { $("#lerr").textContent = m; };
+  if (name.length < 3) return err("Укажите фамилию и инициалы");
+  if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
+  if (pin !== pin2) return err("PIN не совпадает");
+  err("Отправляю…");
+  const r = await callAdmin({ action: "signup", name, pin });
+  if (r.error) return err(r.error);
+  L.pick = { name, login: r.login, role: "mechanic" }; save("rz_pick", L.pick);   // после подтверждения -- сразу PIN
+  L.mode = "sent"; renderLogin();
 }
 async function bootstrap() {
   const name = $("#bName").value.trim(), pin = $("#bPin").value.trim(), pin2 = $("#bPin2").value.trim();
@@ -428,7 +497,7 @@ async function enter() {
   const r = await sb.from("staff").select("*").eq("id", session.user.id).maybeSingle();
   if (r.error && netErr(r.error)) { const c = load("rz_me", null); if (c && c.id === session.user.id) me = c; }
   else me = r.data;
-  if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт — обратитесь к сервисному администратору"); }
+  if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт или заявка ещё не подтверждена — обратитесь к сервисному администратору"); }
   S.me = me; save("rz_me", me);
   $("#top").hidden = false; $("#whoName").textContent = me.name;
   S.tab = isAdmin() ? "feed" : "main";
@@ -464,7 +533,7 @@ function card(j, opts = {}) {
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
   return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
-    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span></div>
+    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span>${j.crew ? `<span class="crew" title="Человек на работе">${svg(ICON.people)}${j.crew}</span>` : ""}</div>
     ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}
     ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
@@ -491,7 +560,7 @@ function render() {
       <h2>Мои выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
   } else {
     const nc = newCount();
-    const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, 0, ""], ["cars", "Машины", ICON.truck, 0, ""]];
+    const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
     $("#nav").innerHTML = nav.map(([k, t, ic, n, c]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${svg(ic)}${t}${n ? `<span class="n ${c}">${n}</span>` : ""}</button>`).join("");
     if (S.tab === "feed") {
       const feed = [...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -507,7 +576,14 @@ function render() {
     } else if (S.tab === "staff") {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
       const own = !!S.me.owner, mine = (s) => s.id === S.me.id || s.role === "mechanic";
-      h += `<h2>Сотрудники</h2><div class="list">${S.staff.map((s) => `<div class="${s.active ? "" : "off"}">
+      const reqs = S.staff.filter((s) => s.pending);
+      h += `<div class="hint"><span class="grow">Ссылка для регистрации сотрудников — каждый создаст учётную запись сам, вы подтвердите.</span>
+          <button class="btn small dark" data-act="invite">Поделиться</button></div>
+        ${reqs.length ? `<h2>Заявки <span class="n red">${reqs.length}</span></h2><div class="list">${reqs.map((s) => `<div>
+          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">механик · ждёт подтверждения</small></span>
+          <button class="btn small red" data-act="approve" data-id="${s.id}">Принять</button>
+          <button class="btn small" data-act="reject" data-id="${s.id}">Отклонить</button></div>`).join("")}</div>` : ""}
+        <h2>Сотрудники</h2><div class="list">${S.staff.filter((s) => !s.pending).map((s) => `<div class="${s.active ? "" : "off"}">
           <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${s.active ? "" : " · отключён"}</small></span>
           ${own ? `<button class="btn small" data-act="staff" data-id="${s.id}">Изменить</button>` : `
           ${mine(s) ? `<button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>` : ""}
@@ -527,14 +603,14 @@ function render() {
     }
   }
   $("#app").innerHTML = h;
-  renderConn();
+  renderConn(); hideSplash();
 }
 
 // ---------- карточка заезда ----------
 function openJob(id) {
   const j = id ? allJobs().find((x) => x.id === id) : null;
   const can = !j || isAdmin() || j.mechanic_id === S.me.id;
-  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт" };
+  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", crew: j?.crew || 1 };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
@@ -558,6 +634,8 @@ function openJob(id) {
     <label class="f">Вид работ</label>
     <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <div class="chips" id="toChips" style="margin-top:6px"></div>
+    <label class="f">Сколько человек работает</label>
+    <div class="seg" id="fCrew">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="${n === S.edit.crew ? "on" : ""}" data-act="crew" data-v="${n}" ${dis}>${n}</button>`).join("")}</div>
     <label class="f">Время заезда</label>
     <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
@@ -609,7 +687,7 @@ function saveJob(exitNow) {
   const motoS = $("#fMoto").value.replace(",", ".").trim();
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
   const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: $("#fFault").value.trim(), work: $("#fWork").value.trim(),
-    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait };
+    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait, crew: e.crew };
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
     if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
@@ -664,6 +742,18 @@ document.addEventListener("click", async (ev) => {
     case "digit": if (L.pin.length < 4) { L.pin += t.dataset.d; L.err = ""; renderLogin(); if (L.pin.length === 4) tryPin(); } break;
     case "back": L.pin = L.pin.slice(0, -1); renderLogin(); break;
     case "bootstrap": bootstrap(); break;
+    case "signup": signup(); break;
+    case "tosignup": L.mode = "signup"; L.err = ""; renderLogin(); break;
+    case "tologin": L.mode = ""; L.err = ""; L.pin = ""; renderLogin(); break;
+    case "invite": { const url = location.origin + location.pathname + "?join";
+      if (navigator.share) navigator.share({ title: "Ремзона ГЕ", text: "Регистрация в приложении «Ремзона ГЕ»", url }).catch(() => {});
+      else navigator.clipboard?.writeText(url).then(() => toast("Ссылка скопирована: " + url), () => prompt("Ссылка для сотрудников:", url));
+      break; }
+    case "approve": case "reject": { const s = S.staff.find((x) => x.id === t.dataset.id);
+      if (a === "reject" && !confirm(`Отклонить заявку «${s.name}»?`)) return;
+      t.disabled = true; const r = await callAdmin({ action: a, id: s.id }); t.disabled = false;
+      toast(r.error || (a === "approve" ? `${s.name}: доступ открыт` : `Заявка «${s.name}» отклонена`), !!r.error); reloadStaff(); break; }
+    case "crew": S.edit.crew = +t.dataset.v; document.querySelectorAll("#fCrew button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
       if (S.channel) sb.removeChannel(S.channel); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
