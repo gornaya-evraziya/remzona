@@ -368,11 +368,13 @@ const cacheJobs = () => save("rz_jobs", [...S.jobs.values()]);
 // ---------- данные ----------
 async function loadAll() {
   const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
-  const [m, j, st] = await Promise.all([
+  const [m, j, st, inv] = await Promise.all([
     sb.from("machines").select("*").order("gar"),
     sb.from("jobs").select("*").eq("deleted", false).or(`ended_at.is.null,updated_at.gte.${since}`).order("started_at", { ascending: false }).limit(500),
     isAdmin() ? sb.from("staff").select("*").order("role", { ascending: false }).order("name") : Promise.resolve({ data: [] }),
+    isAdmin() ? sb.from("invite").select("code").maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  S.invite = inv.data?.code || "";
   if (m.error || j.error) throw (m.error || j.error);
   S.machines = m.data; save("rz_machines", S.machines);
   S.jobs = new Map(j.data.map((x) => [x.id, x])); cacheJobs();
@@ -394,9 +396,10 @@ function subscribe() {
 // ---------- вход ----------
 // списка сотрудников на странице нет: фамилию вводят, сервер отдаёт только совпадения (login_find)
 localStorage.removeItem("rz_logins"); localStorage.removeItem("rz_last");
-// ссылка «…/?join» сразу открывает регистрацию (её администратор рассылает сотрудникам)
-let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "",
-  mode: new URLSearchParams(location.search).has("join") && !load("rz_pick", null) ? "signup" : "" };
+// ссылка «…/?join=КОД» сразу открывает регистрацию с кодом-приглашением (её администратор рассылает сотрудникам)
+const JOIN = new URLSearchParams(location.search).get("join");
+let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "", code: JOIN || "",
+  mode: JOIN !== null && !load("rz_pick", null) ? "signup" : "" };
 async function showLogin(msg) {
   S.me = null; $("#top").hidden = true; $("#nav").hidden = true; document.title = "Ремзона ГЕ";
   L.err = msg || ""; L.pin = ""; L.found = [];
@@ -428,18 +431,14 @@ function renderLogin() {
   }
   if (L.mode === "signup") {
     app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Регистрация</h1>
-      <p class="sub">Заполните данные — администратор подтвердит доступ.</p>
+      <p class="sub">По приглашению администратора — вход сразу после регистрации.</p>
+      <label class="f" style="text-align:left">Код приглашения</label><input class="inp" id="sCode" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="Из ссылки администратора" style="text-transform:uppercase;letter-spacing:.2em">
       <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="sName" autocomplete="off" placeholder="Иванов И.И.">
       <label class="f" style="text-align:left">Придумайте PIN — 4 цифры</label><input class="inp" id="sPin" inputmode="numeric" maxlength="4" type="password">
       <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="sPin2" inputmode="numeric" maxlength="4" type="password">
-      <button class="big" data-act="signup">Отправить заявку</button><div class="err" id="lerr"></div>
+      <button class="big" data-act="signup">Зарегистрироваться</button><div class="err" id="lerr"></div>
       <button class="link" data-act="tologin">Уже есть учётная запись — войти</button></div>`;
-    return;
-  }
-  if (L.mode === "sent") {
-    app.innerHTML = `<div class="login"><div class="done">${svg(ICON.check)}</div><h1>Заявка отправлена</h1>
-      <p class="sub">Когда администратор подтвердит доступ, откройте приложение и введите свой PIN.</p>
-      <button class="big" data-act="tologin">Ко входу</button></div>`;
+    $("#sCode").value = L.code;
     return;
   }
   if (!L.pick) {
@@ -468,15 +467,19 @@ async function tryPin() {
 }
 async function signup() {
   const name = $("#sName").value.trim().replace(/\s+/g, " "), pin = $("#sPin").value.trim(), pin2 = $("#sPin2").value.trim();
+  const code = $("#sCode").value.trim().toUpperCase();
   const err = (m) => { $("#lerr").textContent = m; };
+  if (code.length !== 6) return err("Код приглашения — 6 знаков из ссылки администратора");
   if (name.length < 3) return err("Укажите фамилию и инициалы");
   if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
   if (pin !== pin2) return err("PIN не совпадает");
-  err("Отправляю…");
-  const r = await callAdmin({ action: "signup", name, pin });
+  err("Регистрирую…");
+  const r = await callAdmin({ action: "signup", name, pin, code });
   if (r.error) return err(r.error);
-  L.pick = { name, login: r.login, role: "mechanic" }; save("rz_pick", L.pick);   // после подтверждения -- сразу PIN
-  L.mode = "sent"; renderLogin();
+  // доступ открыт сразу -- входим тем же PIN
+  L.pick = { name, login: r.login, role: "mechanic" }; L.mode = ""; L.code = ""; L.pin = pin;
+  history.replaceState(null, "", location.pathname);
+  tryPin();
 }
 async function bootstrap() {
   const name = $("#bName").value.trim(), pin = $("#bPin").value.trim(), pin2 = $("#bPin2").value.trim();
@@ -577,8 +580,10 @@ function render() {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
       const own = !!S.me.owner, mine = (s) => s.id === S.me.id || s.role === "mechanic";
       const reqs = S.staff.filter((s) => s.pending);
-      h += `<div class="hint"><span class="grow">Ссылка для регистрации сотрудников — каждый создаст учётную запись сам, вы подтвердите.</span>
-          <button class="btn small dark" data-act="invite">Поделиться</button></div>
+      h += `<div class="hint"><span class="grow">${S.invite
+          ? `Приглашение · код <b style="letter-spacing:.12em">${esc(S.invite)}</b><br><small style="color:var(--muted)">По ссылке сотрудник зарегистрируется сам · <button class="link" data-act="newcode" style="font-size:inherit;padding:0;margin:0">новый код</button></small>`
+          : `Ссылка-приглашение — каждый сотрудник зарегистрируется сам`}</span>
+          <button class="btn small dark" data-act="invite">${S.invite ? "Поделиться" : "Создать"}</button></div>
         ${reqs.length ? `<h2>Заявки <span class="n red">${reqs.length}</span></h2><div class="list">${reqs.map((s) => `<div>
           <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">механик · ждёт подтверждения</small></span>
           <button class="btn small red" data-act="approve" data-id="${s.id}">Принять</button>
@@ -745,9 +750,13 @@ document.addEventListener("click", async (ev) => {
     case "signup": signup(); break;
     case "tosignup": L.mode = "signup"; L.err = ""; renderLogin(); break;
     case "tologin": L.mode = ""; L.err = ""; L.pin = ""; renderLogin(); break;
-    case "invite": { const url = location.origin + location.pathname + "?join";
-      if (navigator.share) navigator.share({ title: "Ремзона ГЕ", text: "Регистрация в приложении «Ремзона ГЕ»", url }).catch(() => {});
-      else navigator.clipboard?.writeText(url).then(() => toast("Ссылка скопирована: " + url), () => prompt("Ссылка для сотрудников:", url));
+    case "newcode": if (!confirm("Сделать новый код? Старая ссылка перестанет работать (уже зарегистрированных это не касается).")) return;
+    // fallthrough
+    case "invite": {
+      if (!S.invite || a === "newcode") { const r = await callAdmin({ action: "new_code" }); if (r.error) return toast(r.error, true); S.invite = r.code; render(); return toast(`Код ${r.code} готов — нажмите «Поделиться»`); }
+      const url = location.origin + location.pathname + "?join=" + S.invite;
+      if (navigator.share) navigator.share({ title: "Ремзона ГЕ", text: `Регистрация в приложении «Ремзона ГЕ». Код приглашения: ${S.invite}`, url }).catch(() => {});
+      else navigator.clipboard?.writeText(url).then(() => toast("Ссылка скопирована"), () => prompt("Ссылка для сотрудников:", url));
       break; }
     case "approve": case "reject": { const s = S.staff.find((x) => x.id === t.dataset.id);
       if (a === "reject" && !confirm(`Отклонить заявку «${s.name}»?`)) return;
