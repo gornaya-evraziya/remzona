@@ -620,11 +620,12 @@ function render() {
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
-    const mine = js.filter((j) => j.ended_at && j.mechanic_id === S.me.id && new Date(j.ended_at) >= sh.start)
+    // выезды смены -- все по участку: ремонт могли начать и закрыть разные механики
+    const mine = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start)
       .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
     h = `${head}<button class="big" data-act="new">＋ Заезд машины</button>${installHint()}
       <h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}
-      <h2>Мои выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
+      <h2>Выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
@@ -682,7 +683,8 @@ function render() {
 // ---------- карточка заезда ----------
 function openJob(id) {
   const j = id ? allJobs().find((x) => x.id === id) : null;
-  const can = !j || isAdmin() || j.mechanic_id === S.me.id;
+  // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
+  const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
   S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", crew: j?.crew || 1 };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
@@ -700,7 +702,7 @@ function openJob(id) {
       <button class="btn" data-act="unready" ${dis}>Не ждёт</button></div>` : "";
   $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
       ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
-    ${can ? "" : `<div class="warn">Запись другого механика — только просмотр.</div>`}
+    ${can ? "" : `<div class="warn">Запись другого участка — только просмотр.</div>`}
     <label class="f">Гаражный номер</label>
     <input class="inp" id="fGar" inputmode="numeric" placeholder="Начните вводить номер" value="${esc(S.edit.gar)}" ${dis} autocomplete="off">
     <div class="gars" id="garGrid"></div><div id="garWarn"></div>
@@ -732,8 +734,8 @@ function drawGars() {
   $("#garGrid").innerHTML = e.can && !(xs.length === 1 && xs[0].gar === q) ?
     xs.slice(0, 60).map((m) => `<button class="${busy.has(m.gar) ? "busy" : ""} ${m.gar === q ? "on" : ""}" data-act="gar" data-gar="${m.gar}">${m.gar}</button>`).join("") : "";
   const o = busy.has(q) && allJobs().find((x) => !x.ended_at && x.gar === q && x.id !== e.j?.id);
-  $("#garWarn").innerHTML = o ? `<div class="warn">Машина ${esc(q)} уже на площадке: заезд ${fmt(o.started_at)}, ${esc(o.mechanic_name || "")}. Лучше дополнить ту запись.</div>`
-    : q && !S.machines.some((m) => m.gar === q) ? `<div class="warn">Номера ${esc(q)} нет в списке машин участка.</div>` : "";
+  $("#garWarn").innerHTML = o ? `<div class="warn">Машина ${esc(q)} уже на площадке: заезд ${fmt(o.started_at)} (${esc(o.mechanic_name || "—")}). Лучше дополнить ту запись.</div>`
+    : q && !xs.length ? `<div class="warn">Номера ${esc(q)} нет в списке машин участка.</div>` : "";   // пока номер набирается и есть подходящие -- без предупреждения
 }
 function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
@@ -759,7 +761,9 @@ function saveJob(exitNow) {
   if (ready && new Date(ready) > new Date(Date.now() + 10 * 60000)) return toast("Время готовности в будущем — проверьте", true);
   const motoS = $("#fMoto").value.replace(",", ".").trim();
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
-  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: $("#fFault").value.trim(), work: $("#fWork").value.trim(),
+  // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
+  const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
+  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: cap($("#fWork").value),
     moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait, crew: e.crew };
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
