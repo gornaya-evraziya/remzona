@@ -232,7 +232,7 @@ details.more label.f:first-of-type { margin-top: 0; }
 <nav id="nav" hidden></nav>
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
 <script>
 "use strict";
 // ---------- настройки ----------
@@ -257,6 +257,15 @@ const S = {
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const isAdmin = () => S.me?.role === "admin";
+// ФИО как в таблицах: «метелкин а в», «Метелкин Андрей Викторович» → «Метелкин А.В.»; не по-русски / без инициалов -- ""
+const fio = (s) => {
+  let p = String(s || "").split(/[\s.]+/).filter(Boolean);
+  if (p.length === 2 && /^[А-ЯЁ]{2}$/.test(p[1])) p = [p[0], p[1][0], p[1][1]];
+  if (p.length < 2 || p.length > 3 || !p.every((w) => /^[а-яё]+(-[а-яё]+)*$/i.test(w)) || p[0].length < 2) return "";
+  const cap = (w) => w[0].toUpperCase() + w.slice(1).toLowerCase();
+  return `${p[0].split("-").map(cap).join("-")} ${p.slice(1).map((w) => w[0].toUpperCase() + ".").join("")}`;
+};
+const FIO_ERR = "ФИО — как в таблицах: Фамилия И.О., например Иванов И.И.";
 const netErr = (e) => !navigator.onLine || /fetch|network|load failed|timeout|offline/i.test(String(e?.message || e));
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "x" + Date.now().toString(36) + Math.random().toString(36).slice(2));
 
@@ -480,12 +489,12 @@ async function tryPin() {
   await enter();
 }
 async function signup() {
-  const name = $("#sName").value.trim().replace(/\s+/g, " "), pin = $("#sPin").value.trim(), pin2 = $("#sPin2").value.trim();
+  const name = fio($("#sName").value), pin = $("#sPin").value.trim(), pin2 = $("#sPin2").value.trim();
   const code = $("#sCode").value.trim().toUpperCase();
   const err = (m) => { $("#lerr").textContent = m; };
   if (code.length !== 6) return err("Код приглашения — 6 знаков из ссылки администратора");
   if (!L.site) return err("Выберите участок");
-  if (name.length < 3) return err("Укажите фамилию и инициалы");
+  if (!name) return err(FIO_ERR);
   if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
   if (pin !== pin2) return err("PIN не совпадает");
   err("Регистрирую…");
@@ -497,9 +506,9 @@ async function signup() {
   tryPin();
 }
 async function bootstrap() {
-  const name = $("#bName").value.trim(), pin = $("#bPin").value.trim(), pin2 = $("#bPin2").value.trim();
+  const name = fio($("#bName").value), pin = $("#bPin").value.trim(), pin2 = $("#bPin2").value.trim();
   const err = (m) => { $("#lerr").textContent = m; };
-  if (!name) return err("Укажите фамилию");
+  if (!name) return err(FIO_ERR);
   if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
   if (pin !== pin2) return err("PIN не совпадает");
   err("Создаю…");
@@ -828,8 +837,9 @@ document.addEventListener("click", async (ev) => {
     case "role": document.querySelectorAll("#nsRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "genpin": $("#nsPin").value = randPin(); break;
     case "addstaff": {
-      const name = $("#nsName").value.trim(), pin = $("#nsPin").value.trim(), role = document.querySelector("#nsRole .chip.on").dataset.v;
-      if (!name || !/^\d{4}$/.test(pin)) return toast("Нужны фамилия и PIN из 4 цифр", true);
+      const name = fio($("#nsName").value), pin = $("#nsPin").value.trim(), role = document.querySelector("#nsRole .chip.on").dataset.v;
+      if (!name) return toast(FIO_ERR, true);
+      if (!/^\d{4}$/.test(pin)) return toast("PIN — ровно 4 цифры", true);
       t.disabled = true; const r = await callAdmin({ action: "create", name, role, pin }); t.disabled = false;
       if (r.error) return toast(r.error, true);
       toast(`${name} добавлен. PIN: ${pin}`); reloadStaff(); break;
@@ -841,8 +851,10 @@ document.addEventListener("click", async (ev) => {
       if (r.error) toast(r.error, true); else if (!$("#sheet").hidden) closeSheet(); reloadStaff(); break; }
     case "staff": openStaff(t.dataset.id); break;
     case "serole": S.edit.role = t.dataset.v; document.querySelectorAll("#seRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
-    case "savestaff": { const s = S.edit.staff, name = $("#seName").value.trim();
-      if (!name) return toast("Укажите фамилию", true);
+    case "savestaff": { const s = S.edit.staff, typed = $("#seName").value.trim();
+      // прежнее имя не трогаем (правят роль / участок), новое -- только «Фамилия И.О.»
+      const name = typed === s.name ? typed : fio(typed);
+      if (!name) return toast(FIO_ERR, true);
       t.disabled = true; const r = await callAdmin({ action: "update", id: s.id, name, role: S.edit.role, site: S.edit.site }); t.disabled = false;
       if (r.error) return toast(r.error, true);
       if (s.id === S.me.id) { S.me.name = name; save("rz_me", S.me); $("#whoName").textContent = name; }
