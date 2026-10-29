@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#3F3F3F">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ремзона ГЕ">
@@ -11,125 +11,183 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Ремзона ГЕ</title>
+<script>try { const t = JSON.parse(localStorage.getItem("rz_theme")); if (t && t !== "auto") document.documentElement.dataset.theme = t; } catch {}</script>
 <style>
 :root {
-  --red: #C30013; --red-soft: #FBEAEC; --graphite: #3F3F3F; --graphite2: #5A5A5A;
-  --bg: #F5F5F5; --card: #FFFFFF; --line: #DADADA; --text: #222; --muted: #6B6B6B;
+  color-scheme: light;
+  --red: #C30013; --red-soft: #FBEAEC; --graphite: #3F3F3F; --on-graphite: #FFFFFF; --strong: #2B2B2B;
+  --bg: #F2F2F2; --card: #FFFFFF; --line: #DADADA; --line2: #EEEEEE; --text: #222; --muted: #6B6B6B;
+  --chip: #EDEDED; --press: #E6E6E6; --disabled: #EFEFEF; --scrim: rgba(0,0,0,.35); --shadow: 0 1px 3px rgba(0,0,0,.07);
   --green: #2E7D32; --green-soft: #E6F2E7; --amber: #B26A00; --amber-soft: #FFF3DC;
+  --logo-bg: transparent; --logo-pad: 0;
+}
+/* тёмная тема: по настройке телефона или кнопкой в шапке (data-theme) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --red: #E5323F; --red-soft: #3B1519; --graphite: #4A4A4A; --on-graphite: #FFFFFF; --strong: #F2F2F2;
+    --bg: #121212; --card: #1E1E1E; --line: #343434; --line2: #2A2A2A; --text: #EAEAEA; --muted: #9E9E9E;
+    --chip: #2C2C2C; --press: #2E2E2E; --disabled: #262626; --scrim: rgba(0,0,0,.6); --shadow: none;
+    --green: #6CC070; --green-soft: #1A2E1C; --amber: #FFB547; --amber-soft: #3A2C12;
+    --logo-bg: #FFFFFF; --logo-pad: 3px 6px;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --red: #E5323F; --red-soft: #3B1519; --graphite: #4A4A4A; --on-graphite: #FFFFFF; --strong: #F2F2F2;
+  --bg: #121212; --card: #1E1E1E; --line: #343434; --line2: #2A2A2A; --text: #EAEAEA; --muted: #9E9E9E;
+  --chip: #2C2C2C; --press: #2E2E2E; --disabled: #262626; --scrim: rgba(0,0,0,.6); --shadow: none;
+  --green: #6CC070; --green-soft: #1A2E1C; --amber: #FFB547; --amber-soft: #3A2C12;
+  --logo-bg: #FFFFFF; --logo-pad: 3px 6px;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.35 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 body { padding-bottom: env(safe-area-inset-bottom); }
 button, input, select, textarea { font: inherit; color: inherit; }
+button { touch-action: manipulation; }
+svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+img.logo { background: var(--logo-bg); padding: var(--logo-pad); border-radius: 6px; }
 header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 3px solid var(--red);
-  padding: calc(8px + env(safe-area-inset-top)) 16px 8px; display: flex; align-items: center; gap: 10px; }
+  padding: calc(6px + env(safe-area-inset-top)) 6px 6px 16px; display: flex; align-items: center; gap: 6px; }
 header[hidden] { display: none; }
-header img { height: 26px; }
-header .who { margin-left: auto; text-align: right; font-size: 13px; line-height: 1.2; }
-header .who b { display: block; font-size: 14px; }
-#conn { font-size: 12px; color: var(--muted); }
-#conn.ok::before, #conn.off::before, #conn.wait::before { content: "●"; margin-right: 4px; }
-#conn.ok::before { color: var(--green); } #conn.off::before { color: #999; } #conn.wait::before { color: var(--amber); }
-.iconbtn { border: 0; background: none; padding: 6px; font-size: 20px; cursor: pointer; color: var(--graphite); }
-main { max-width: 720px; margin: 0 auto; padding: 12px 16px 96px; }
-h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .03em; color: var(--graphite2); margin: 20px 0 8px;
+header img { height: 19px; flex: none; }
+header .iconbtn { width: 40px; }
+header .who { margin-left: auto; min-width: 0; text-align: right; line-height: 1.25; }
+header .who b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--strong); }
+#conn { font-size: 12px; color: var(--muted); white-space: nowrap; }
+#conn::before { content: "●"; margin-right: 4px; color: #999; }
+#conn.ok::before { color: var(--green); } #conn.wait::before { color: var(--amber); }
+.iconbtn { border: 0; background: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px;
+  cursor: pointer; color: var(--strong); flex: none; padding: 0; font-size: 20px; }
+.iconbtn:active { background: var(--press); }
+main { max-width: 720px; margin: 0 auto; padding: 12px 16px 120px; }
+h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 22px 0 10px;
   display: flex; align-items: center; gap: 8px; }
-h2 .n { background: var(--graphite); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; }
-.shift { background: var(--graphite); color: #fff; border-radius: 10px; padding: 10px 14px; display: flex;
+h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 10px; padding: 0 8px; font-size: 13px; letter-spacing: 0; }
+.shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
   justify-content: space-between; align-items: center; font-size: 15px; }
-.shift small { opacity: .75; }
-.big { width: 100%; border: 0; border-radius: 12px; background: var(--red); color: #fff; font-size: 19px; font-weight: 600;
-  padding: 16px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 6px rgba(195,0,19,.25); }
-.big:active { transform: scale(.99); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
-  display: grid; grid-template-columns: 64px 1fr; gap: 2px 10px; cursor: pointer; position: relative; }
-.card.open { border-left: 5px solid var(--red); }
-.card.closed { border-left: 5px solid var(--green); }
-.card.new { box-shadow: 0 0 0 2px var(--red) inset; }
-.card .gar { grid-row: span 2; font-size: 26px; font-weight: 700; color: var(--graphite); align-self: center; text-align: center; }
-.card .gar small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
-.card .meta { font-size: 14px; color: var(--muted); }
-.card .meta b { color: var(--text); }
-.card .txt { font-size: 14px; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-.badges { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.badge { font-size: 12px; border-radius: 6px; padding: 1px 7px; background: #EEE; color: var(--graphite2); }
+.shift small { opacity: .75; font-size: 15px; }
+.big { width: 100%; border: 0; border-radius: 14px; background: var(--red); color: #fff; font-size: 19px; font-weight: 600;
+  min-height: 58px; padding: 14px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(195,0,19,.25); }
+.big:active { transform: scale(.99); filter: brightness(.95); }
+/* карточка машины */
+.card { background: var(--card); border: 1px solid var(--line); border-left-width: 6px; border-radius: 14px; padding: 12px 12px 12px 6px;
+  margin-bottom: 10px; display: flex; gap: 10px; cursor: pointer; box-shadow: var(--shadow); }
+.card:active { background: var(--press); }
+.card.open { border-left-color: var(--red); }
+.card.closed { border-left-color: var(--green); }
+.card.new { box-shadow: 0 0 0 2px var(--red); }
+.card .gar { flex: none; width: 74px; align-self: center; text-align: center; font-size: 30px; font-weight: 800; line-height: 1.05;
+  color: var(--strong); letter-spacing: -.01em; }
+.card .gar small { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.card .body { flex: 1; min-width: 0; }
+.card .top { display: flex; gap: 8px; align-items: baseline; }
+.card .kind { font-weight: 700; color: var(--strong); flex: none; }
+.card .mech { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .st { font-size: 15px; font-weight: 600; margin-top: 3px; }
+.card .st.open { color: var(--red); } .card .st.done { color: var(--green); }
+.card .st span { font-size: 14px; font-weight: 400; color: var(--muted); }
+.card .txt { font-size: 14px; margin-top: 5px; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.badge { font-size: 12px; border-radius: 6px; padding: 2px 8px; background: var(--chip); color: var(--muted); }
 .badge.red { background: var(--red-soft); color: var(--red); } .badge.green { background: var(--green-soft); color: var(--green); }
 .badge.amber { background: var(--amber-soft); color: var(--amber); }
-.empty { color: var(--muted); text-align: center; padding: 18px; border: 1px dashed var(--line); border-radius: 12px; font-size: 14px; }
-.tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; }
-.tab { flex: none; border: 1px solid var(--line); background: var(--card); border-radius: 20px; padding: 7px 14px; cursor: pointer; font-size: 15px; }
-.tab.on { background: var(--graphite); border-color: var(--graphite); color: #fff; }
-.tab .n { background: var(--red); color: #fff; border-radius: 9px; padding: 0 6px; font-size: 12px; margin-left: 4px; }
+.empty { color: var(--muted); text-align: center; padding: 20px; border: 1px dashed var(--line); border-radius: 14px; font-size: 14px; }
+/* нижнее меню администратора */
+#nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(4, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+#nav[hidden] { display: none; }
+#nav button { position: relative; border: 0; background: none; min-height: 60px; padding: 8px 0 7px; display: grid; justify-items: center;
+  align-content: center; gap: 3px; font-size: 12px; color: var(--muted); cursor: pointer; }
+#nav button.on { color: var(--red); font-weight: 600; }
+#nav .n { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red);
+  color: #fff; font-size: 11px; line-height: 18px; font-weight: 600; }
+#nav .n.dim { background: var(--graphite); color: var(--on-graphite); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 15px; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; min-height: 46px; padding: 10px 14px; cursor: pointer; font-size: 15px; }
+.btn:active { filter: brightness(.94); }
 .btn.red { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
-.btn.dark { background: var(--graphite); border-color: var(--graphite); color: #fff; }
-.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.dark { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.btn.small { min-height: 38px; padding: 6px 12px; font-size: 14px; }
 .btn:disabled { opacity: .5; }
-.list { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-.list > div { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #EEE; flex-wrap: wrap; }
+.list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+.list > div { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
 .list > div:last-child { border-bottom: 0; }
 .list .grow { flex: 1; min-width: 140px; }
 .off { opacity: .45; }
 /* форма */
-#sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; justify-content: center; }
+#sheet { position: fixed; inset: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
 #sheet[hidden] { display: none; }
-.panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 100%; overflow-y: auto; border-radius: 16px 16px 0 0;
-  padding: 0 16px calc(16px + env(safe-area-inset-bottom)); }
-.panel .head { position: sticky; top: 0; background: var(--bg); padding: 14px 0 8px; display: flex; align-items: center; gap: 8px; z-index: 2; }
-.panel .head b { font-size: 18px; }
+.panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 100%; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 0 16px; }
+.panel .head { position: sticky; top: 0; background: var(--bg); padding: 12px 0 8px; display: flex; align-items: center; gap: 8px; z-index: 2; }
+.panel .head b { font-size: 19px; color: var(--strong); }
 .panel .head .iconbtn { margin-left: auto; }
-label.f { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
-.inp { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--card); font-size: 16px; }
+label.f { display: block; margin: 14px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.inp { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--card); font-size: 16px; }
 textarea.inp { min-height: 74px; resize: vertical; }
 .inp:focus { outline: 2px solid var(--graphite); border-color: transparent; }
-.inp:disabled { background: #EFEFEF; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { border: 1px solid var(--line); background: var(--card); border-radius: 18px; padding: 7px 13px; cursor: pointer; font-size: 15px; }
-.chip.on { background: var(--graphite); color: #fff; border-color: var(--graphite); }
+.inp:disabled { background: var(--disabled); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { min-height: 44px; border: 1px solid var(--line); background: var(--card); border-radius: 22px; padding: 9px 16px; cursor: pointer; font-size: 15px; }
+.chip.on { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
 .chip:disabled { opacity: .55; }
-.gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; margin-top: 8px; max-height: 176px; overflow-y: auto; }
-.gars button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 9px 0; font-weight: 600; cursor: pointer; }
-.gars button.busy { border-color: var(--red); color: var(--red); }
-.gars button.on { background: var(--graphite); color: #fff; }
-.timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; }
-.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 8px 12px; font-size: 14px; margin-top: 8px; }
-.actions { display: flex; gap: 8px; margin-top: 18px; } .actions .btn { flex: 1; padding: 13px; font-size: 16px; }
+.gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 8px; margin-top: 8px; max-height: 208px; overflow-y: auto; }
+.gars button { min-height: 48px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; }
+.gars button.busy { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+.gars button.on { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
+.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-top: 8px; }
+details.more { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 0 12px; }
+details.more summary { list-style: none; display: flex; align-items: baseline; gap: 8px; min-height: 48px; padding: 13px 0; cursor: pointer; font-weight: 600; color: var(--strong); }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary small { color: var(--muted); font-weight: 400; font-size: 13px; }
+details.more summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+details.more[open] summary::after { content: "▴"; }
+details.more[open] { padding-bottom: 12px; }
+details.more label.f:first-of-type { margin-top: 0; }
+.actions { display: flex; gap: 8px; margin-top: 18px; } .actions .btn { flex: 1; min-height: 54px; font-size: 17px; }
+.actions.bar { position: sticky; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--line);
+  margin: 18px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+.panel > :last-child:not(.bar) { margin-bottom: calc(16px + env(safe-area-inset-bottom)); }
 /* вход */
 .login { max-width: 420px; margin: 0 auto; padding: 24px 16px; text-align: center; }
 .login img { height: 40px; margin: 16px 0 6px; }
-.login h1 { font-size: 20px; margin: 6px 0 18px; color: var(--graphite); }
-.names { display: grid; gap: 8px; text-align: left; }
-.names button { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 13px 14px; font-size: 17px; cursor: pointer;
+.login h1 { font-size: 21px; margin: 6px 0 18px; color: var(--strong); }
+.names { display: grid; gap: 8px; text-align: left; margin-top: 12px; }
+.names button { border: 1px solid var(--line); background: var(--card); border-radius: 12px; min-height: 52px; padding: 13px 14px; font-size: 17px; cursor: pointer;
   display: flex; justify-content: space-between; }
 .names button small { color: var(--muted); }
-.dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
-.dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--graphite); }
-.dots i.on { background: var(--graphite); }
+.dots { display: flex; justify-content: center; gap: 16px; margin: 20px 0; }
+.dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--strong); }
+.dots i.on { background: var(--strong); }
 .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
-.pad button { border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 16px 0; font-size: 24px; cursor: pointer; }
-.pad button:active { background: #EAEAEA; }
-.err { color: var(--red); min-height: 22px; margin-top: 8px; font-size: 15px; }
+.pad button { border: 1px solid var(--line); background: var(--card); border-radius: 16px; min-height: 62px; font-size: 25px; cursor: pointer; }
+.pad button:active { background: var(--press); }
+.err { color: var(--red); min-height: 22px; margin-top: 10px; font-size: 15px; }
 #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
   display: grid; gap: 6px; width: min(92vw, 520px); pointer-events: none; }
-#toast div { background: var(--graphite); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+#nav:not([hidden]) ~ #toast { bottom: calc(74px + env(safe-area-inset-bottom)); }
+#sheet:not([hidden]) ~ #toast { bottom: auto; top: calc(10px + env(safe-area-inset-top)); }   /* не закрывать кнопки формы */
+#toast div { background: #333; color: #fff; border-radius: 12px; padding: 11px 14px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.3);
   border-left: 5px solid var(--red); animation: up .25s ease; }
-#toast div.bad { background: var(--red); border-left-color: #7a0010; }
+#toast div.bad { background: #C30013; border-left-color: #7a0010; }
 @keyframes up { from { transform: translateY(12px); opacity: 0; } }
-.hint { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 12px;
+.hint { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 14px; margin-top: 12px;
   display: flex; gap: 8px; align-items: center; }
 .hint .grow { flex: 1; }
 </style>
 </head>
 <body>
 <header id="top" hidden>
-  <img src="logo.png" alt="Горная Евразия">
+  <img class="logo" src="logo.png" alt="Горная Евразия">
   <div class="who"><b id="whoName"></b><span id="conn">…</span></div>
-  <button class="iconbtn" data-act="logout" title="Выйти">⎋</button>
+  <button class="iconbtn" data-act="theme" id="themeBtn"></button>
+  <button class="iconbtn" data-act="logout" id="outBtn" title="Выйти"></button>
 </header>
-<main id="app"><div class="login"><img src="logo.png" alt=""><h1>Ремзона ГЕ</h1><p>Загрузка…</p></div></main>
+<main id="app"><div class="login"><img class="logo" src="logo.png" alt=""><h1>Ремзона ГЕ</h1><p>Загрузка…</p></div></main>
 <div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<nav id="nav" hidden></nav>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -179,6 +237,30 @@ function shiftOf(t = new Date()) {
   const st = new Date(d); st.setHours(DAY_START, 0, 0, 0); const n = new Date(d); n.setHours(0, 0, 0, 0); return { date: n, n: 2, start: st };
 }
 const shiftText = (s) => `${dm(s.date)}.${s.date.getFullYear()} · смена ${s.n} (${s.n === 1 ? "ночь" : "день"})`;
+const when = (iso) => { const d = new Date(iso); return d.toDateString() === new Date().toDateString() ? hm(d) : `${dm(d)} ${hm(d)}`; };
+
+// ---------- значки и тема ----------
+const ICON = {
+  out: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  feed: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+  people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
+  truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+};
+const svg = (p) => `<svg class="i" viewBox="0 0 24 24">${p}</svg>`;
+// тема: по настройке телефона, кнопка в шапке переключает и запоминает
+const darkMQ = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => { const t = load("rz_theme", "auto"); return t === "dark" || (t === "auto" && darkMQ.matches); };
+function applyTheme() {
+  const t = load("rz_theme", "auto"), r = document.documentElement;
+  if (t === "auto") delete r.dataset.theme; else r.dataset.theme = t;
+  const dark = isDark();
+  $("#themeBtn").innerHTML = svg(dark ? ICON.sun : ICON.moon); $("#themeBtn").title = dark ? "Светлая тема" : "Тёмная тема";
+  document.querySelector('meta[name="theme-color"]').content = dark ? "#1E1E1E" : "#FFFFFF";
+}
+darkMQ.addEventListener?.("change", applyTheme);
 
 // ---------- уведомления ----------
 function toast(msg, bad) {
@@ -274,7 +356,7 @@ function subscribe() {
 localStorage.removeItem("rz_logins"); localStorage.removeItem("rz_last");
 let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "" };
 async function showLogin(msg) {
-  S.me = null; $("#top").hidden = true; document.title = "Ремзона ГЕ";
+  S.me = null; $("#top").hidden = true; $("#nav").hidden = true; document.title = "Ремзона ГЕ";
   L.err = msg || ""; L.pin = ""; L.found = [];
   try { const { data, error } = await sb.rpc("staff_exists"); if (error) throw error; L.first = !data; }
   catch (e) { L.first = false; if (!L.pick) L.err = "Нет связи с сервером. Проверьте интернет."; }
@@ -294,7 +376,7 @@ async function findName() {
 function renderLogin() {
   const app = $("#app");
   if (L.first) {
-    app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>Первый запуск</h1>
+    app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Первый запуск</h1>
       <p style="color:var(--muted);font-size:15px">Создайте учётную запись сервисного администратора. Механиков он добавит сам.</p>
       <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="bName" placeholder="Умаров Р.К.">
       <label class="f" style="text-align:left">PIN — 4 цифры</label><input class="inp" id="bPin" inputmode="numeric" maxlength="4" type="password">
@@ -304,13 +386,13 @@ function renderLogin() {
   }
   if (!L.pick) {
     const names = L.found.length > 1 ? `<div class="names">${L.found.map((x) => `<button data-act="pick" data-login="${esc(x.login)}">${esc(x.name)}<small>›</small></button>`).join("")}</div>` : "";
-    app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>Ремзона ГЕ — вход</h1>
+    app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Ремзона ГЕ — вход</h1>
       <label class="f" style="text-align:left">Фамилия</label><input class="inp" id="lName" autocomplete="off" placeholder="Например, Иванов">
       <button class="big" data-act="find">Далее</button>${names}<div class="err">${esc(L.err)}</div></div>`;
     $("#lName").value = L.q;
     return;
   }
-  app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>${esc(L.pick.name)}</h1>
+  app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>${esc(L.pick.name)}</h1>
     <div style="color:var(--muted)">Введите PIN</div>
     <div class="dots">${[0, 1, 2, 3].map((i) => `<i class="${i < L.pin.length ? "on" : ""}"></i>`).join("")}</div>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-act="digit" data-d="${n}">${n}</button>`).join("")}
@@ -346,7 +428,7 @@ async function enter() {
   else me = r.data;
   if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт — обратитесь к сервисному администратору"); }
   S.me = me; save("rz_me", me);
-  $("#top").hidden = false; $("#whoName").textContent = me.name + (isAdmin() ? " · администратор" : "");
+  $("#top").hidden = false; $("#whoName").textContent = me.name;
   S.tab = isAdmin() ? "feed" : "main";
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
   subscribe(); render(); flush();
@@ -366,7 +448,8 @@ function card(j, opts = {}) {
   const m = S.machines.find((x) => x.gar === j.gar);
   const open = !j.ended_at;
   const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
-  const times = `заезд ${fmt(j.started_at)}` + (open ? ` · ${dur(j.started_at)}` : ` · выезд ${fmt(j.ended_at)} · ${dur(j.started_at, j.ended_at)}`);
+  const st = open ? `<div class="st open">На площадке ${dur(j.started_at)} <span>· с ${when(j.started_at)}</span></div>`
+    : `<div class="st done">Выехала ${when(j.ended_at)} <span>· стояла ${dur(j.started_at, j.ended_at)}</span></div>`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
   const b = [];
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
@@ -376,9 +459,9 @@ function card(j, opts = {}) {
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
   return `<div class="card ${open ? "open" : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
-    <div class="meta"><b>${esc(j.kind)}</b> · ${esc(j.mechanic_name || "—")}<br>${times}</div>
-    ${txt ? `<div class="txt" style="grid-column:2">${esc(txt)}</div>` : ""}
-    ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div>`;
+    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span></div>
+    ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}
+    ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
 const list = (xs, opts, empty) => (xs.length ? xs.map((j) => card(j, opts)).join("") : `<div class="empty">${empty}</div>`);
 function installHint() {
@@ -394,6 +477,7 @@ function render() {
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
   const head = `<div class="shift"><span>${shiftText(sh)}</span><small>${hm(new Date())}</small></div>`;
   let h = "";
+  $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
     const mine = js.filter((j) => j.ended_at && j.mechanic_id === S.me.id && new Date(j.ended_at) >= sh.start)
       .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
@@ -402,19 +486,19 @@ function render() {
       <h2>Мои выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
   } else {
     const nc = newCount();
-    const tabs = [["feed", "Лента", nc], ["open", "На площадке", 0], ["staff", "Сотрудники", 0], ["cars", "Машины", 0]];
-    h = `<div class="tabs">${tabs.map(([k, t, n]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${t}${k === "open" ? ` (${openJ.length})` : ""}${n ? `<span class="n">${n}</span>` : ""}</button>`).join("")}</div>`;
+    const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, 0, ""], ["cars", "Машины", ICON.truck, 0, ""]];
+    $("#nav").innerHTML = nav.map(([k, t, ic, n, c]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${svg(ic)}${t}${n ? `<span class="n ${c}">${n}</span>` : ""}</button>`).join("");
     if (S.tab === "feed") {
       const feed = [...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
       const notIn = js.filter((j) => j.rev > j.imported_rev).length;
-      h += `<div style="margin-top:12px">${head}</div>
+      h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
         ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
         ${"Notification" in window && Notification.permission === "default" ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
         <span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span></div>
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
-      h += `<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
+      h += `${head}<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
     } else if (S.tab === "staff") {
       h += `<h2>Сотрудники</h2><div class="list">${S.staff.map((s) => `<div class="${s.active ? "" : "off"}">
           <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.active ? "" : " · отключён"}</small></span>
@@ -444,6 +528,11 @@ function openJob(id) {
   const can = !j || isAdmin() || j.mechanic_id === S.me.id;
   S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт" };
   const dis = can ? "" : "disabled";
+  // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
+  const more = `<label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
+    <label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}>
+    <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
+    <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>`;
   $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
       ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
     ${can ? "" : `<div class="warn">Запись другого механика — только просмотр.</div>`}
@@ -457,16 +546,13 @@ function openJob(id) {
     <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
-    <label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
-    <div class="timebox"><div style="flex:1"><label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}></div></div>
-    <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
-    <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>
+    ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>сделано, м/ч, ТМЦ</small></summary>${more}</details>`}
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input class="inp" type="datetime-local" id="fEnd" value="${toInput(j.ended_at)}" ${dis}>
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
-    <div class="actions">${can ? (j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
-      : `<button class="btn red" data-act="savejob">Отметить заезд</button>`) : ""}</div>
-    ${j && isAdmin() ? `<div class="actions"><button class="btn small" data-act="deljob">Удалить запись</button></div>` : ""}`;
+    ${j && isAdmin() ? `<div class="actions"><button class="btn small" data-act="deljob">Удалить запись</button></div>` : ""}
+    ${can ? `<div class="actions bar">${j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
+      : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
   drawGars(); drawTo();
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
@@ -541,13 +627,14 @@ document.addEventListener("click", async (ev) => {
     case "bootstrap": bootstrap(); break;
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
       if (S.channel) sb.removeChannel(S.channel); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
-    case "tab": S.tab = t.dataset.tab; render(); break;
+    case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
+    case "theme": save("rz_theme", isDark() ? "light" : "dark"); applyTheme(); break;
     case "new": openJob(null); break;
     case "job": openJob(t.dataset.id); break;
     case "close": closeSheet(); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
     case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
-    case "to": { const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
+    case "to": { $("#more")?.setAttribute("open", ""); const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
     case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); break;
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
@@ -599,6 +686,7 @@ setInterval(refresh, 120000);
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_OUT" && S.me) showLogin(); });
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+$("#outBtn").innerHTML = svg(ICON.out); applyTheme();
 enter();
 </script>
 </body>
