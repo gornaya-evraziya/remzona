@@ -196,7 +196,7 @@ details.more label.f:first-of-type { margin-top: 0; }
 /* заставка при запуске: логотип проявляется, под ним бежит тонкая красная полоса */
 #splash { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg);
   transition: opacity .4s ease, visibility .4s; }
-#splash.out { opacity: 0; visibility: hidden; }
+#splash.out { opacity: 0; visibility: hidden; pointer-events: none; }
 #splash .sp { display: grid; justify-items: center; gap: 20px; animation: spIn .7s cubic-bezier(.2,.7,.2,1) both; }
 #splash img { height: 34px; }
 #splash .bar { position: relative; width: 132px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
@@ -245,14 +245,21 @@ const SITES = ["Благодатный", "Восточный"], EXCEL_SITE = "Б
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
 
-const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rz_auth" } });
+// запрос к серверу -- не дольше 15 с: при плохой связи не висим (ошибка «нет связи», очередь повторит)
+const fetchT = (url, opt = {}) => {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), 15000);
+  opt.signal?.addEventListener("abort", () => ac.abort());
+  return fetch(url, { ...opt, signal: ac.signal })
+    .catch((e) => { throw ac.signal.aborted ? new TypeError("Failed to fetch (timeout)") : e; }).finally(() => clearTimeout(t));
+};
+const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rz_auth" }, global: { fetch: fetchT } });
 const pinPassword = (pin, login) => `ge-${pin}-${login}`;
 
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const S = {
   me: null, machines: load("rz_machines", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
-  queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: false,
+  queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: null,
 };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -320,7 +327,7 @@ darkMQ.addEventListener?.("change", applyTheme);
 // ---------- заставка: убрать после первого экрана, но не раньше 0,9 с от открытия (анимация успевает пройти) ----------
 function hideSplash() {
   const el = $("#splash"); if (!el || el.classList.contains("out")) return;
-  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(0, 900 - performance.now()));
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(0, 300 - performance.now()));
 }
 setTimeout(hideSplash, 8000);   // страховка, если связь зависла
 
@@ -357,22 +364,42 @@ function enqueue(cid, data, isNew, id) {
   if (ex) Object.assign(ex.data, data); else S.queue.push({ cid, id, isNew, data });
   saveQ(); render(); flush();
 }
-async function flush() {
-  if (S.flushing || !S.queue.length || !S.me) return;
-  S.flushing = true;
+// истёк вход (JWT) -- запись не теряем, повторим после обновления входа
+const authErr = (r) => r.status === 401 || /^PGRST30/.test(r.error?.code || "");
+// одна отправка за раз; refresh ждёт её, прежде чем перечитать записи (иначе только что отправленная пропала бы до обновления)
+function flush() {
+  if (!S.flushing && S.queue.length && S.me) S.flushing = sendQueue();
+  return S.flushing || Promise.resolve();
+}
+async function sendQueue() {
   try {
+    // без действующего входа сервер отказал бы и запись пропала -- ждём, вход обновится сам, когда будет связь
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;
     while (S.queue.length) {
-      const q = S.queue[0]; let res;
+      const q = S.queue[0], sent = JSON.stringify(q.data); let res;
       if (q.isNew) res = await sb.from("jobs").upsert({ ...q.data, client_id: q.cid }, { onConflict: "client_id" }).select().single();
       else if (q.cid) res = await sb.from("jobs").update(q.data).eq("client_id", q.cid).select().single();
       else res = await sb.from("jobs").update(q.data).eq("id", q.id).select().single();
       if (res.error) {
-        if (netErr(res.error)) break;
+        if (netErr(res.error) || authErr(res)) break;
         toast("Не сохранено (" + (q.data.gar || "") + "): " + res.error.message, true);
-      } else { S.jobs.set(res.data.id, res.data); }
+      } else {
+        S.jobs.set(res.data.id, res.data);
+        // пока запрос шёл, запись дополнили -- дополнение отправить следующим запросом, а не потерять
+        if (JSON.stringify(q.data) !== sent) { q.isNew = false; saveQ(); continue; }
+      }
       S.queue.shift(); saveQ();
     }
-  } finally { S.flushing = false; cacheJobs(); renderConn(); render(); }
+  } finally { S.flushing = null; cacheJobs(); renderConn(); render(); retryLater(); }
+}
+// пока очередь не пуста -- повтор через 5 с, 10, 20 … 60 с: связь вернулась -- уходит в ближайшую попытку
+let retryT = null, retryMs = 5000;
+function retryLater(now) {
+  if (now || !S.queue.length) { clearTimeout(retryT); retryT = null; retryMs = 5000; }
+  if (now) return flush();
+  if (retryT || !S.queue.length) return;
+  retryT = setTimeout(() => { retryT = null; retryMs = Math.min(retryMs * 2, 60000); flush(); }, retryMs);
 }
 // записи с учётом неотправленного
 function allJobs() {
@@ -517,17 +544,30 @@ async function bootstrap() {
   L.first = false; L.pick = { name, login: r.login, role: "admin" }; L.pin = pin; await tryPin();
 }
 
+function start(me) {
+  const first = !S.me || S.me.role !== me.role;
+  S.me = me; save("rz_me", me);
+  $("#top").hidden = false; $("#whoName").textContent = me.name;
+  if (first) S.tab = isAdmin() ? "feed" : "main";
+  render();
+}
 async function enter() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) return showLogin();
+  // быстрый старт: сохранённые на телефоне вход, профиль, машины и записи -- экран сразу, сверка с сервером следом
+  const uid = load("rz_auth", null)?.user?.id, cached = load("rz_me", null);
+  const quick = !!uid && cached?.id === uid && !!cached.active;
+  if (quick) start(cached);
+  const { data: { session }, error } = await sb.auth.getSession();
+  if (!session) {
+    // вход истёк, а обновить его нет связи -- работаем с сохранённым, очередь уйдёт, когда связь вернётся
+    if (quick && error && netErr(error)) { renderConn(); retryLater(); return; }
+    return showLogin();
+  }
   let me = null;
   const r = await sb.from("staff").select("*").eq("id", session.user.id).maybeSingle();
   if (r.error && netErr(r.error)) { const c = load("rz_me", null); if (c && c.id === session.user.id) me = c; }
   else me = r.data;
   if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт или заявка ещё не подтверждена — обратитесь к сервисному администратору"); }
-  S.me = me; save("rz_me", me);
-  $("#top").hidden = false; $("#whoName").textContent = me.name;
-  S.tab = isAdmin() ? "feed" : "main";
+  start(me);
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
   subscribe(); render(); flush();
 }
@@ -889,10 +929,16 @@ document.addEventListener("keydown", (e) => {
 $("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
-async function refresh() { if (!S.me || !navigator.onLine) return; flush(); try { await loadAll(); render(); } catch {} }
+async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} }
 window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
 window.addEventListener("offline", renderConn);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); } });
+// новая версия сайта скачана в фоне (sw.js) -- применяется, когда приложение снова открыли и форма не открыта
+navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "updated") S.update = true; });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (S.update && $("#sheet").hidden && !S.queue.length) return location.reload();
+  refresh();
+});
 setInterval(() => { if (S.me && $("#sheet").hidden) render(); }, 60000);   // длительность «на площадке»
 setInterval(refresh, 120000);
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_OUT" && S.me) showLogin(); });

@@ -1,25 +1,37 @@
 // Ремзона ГЕ: оболочка приложения работает без связи (данные -- через очередь в index.html), показ уведомлений
-const CACHE = "remzona-v2";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./logo.png", "./icon-192.png", "./icon-512.png",
+const CACHE = "remzona-v3";
+const SHELL = ["./index.html", "./manifest.webmanifest", "./logo.png", "./icon-192.png", "./icon-512.png",
   "./supabase.js"]; // supabase-js 2.45.4 (dist/umd из пакета npm) -- со своего сайта, без стороннего CDN
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // мимо кэша браузера -- иначе GitHub Pages может отдать прежнюю версию (кэш до 10 мин)
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
-// страница -- сначала сеть (свежая версия), без связи -- из кэша; запросы к базе не кэшируются
+// оболочка -- сразу из кэша (запуск без ожидания сети), свежая версия докачивается в фоне;
+// изменилась страница -- сообщить приложению (обновится при следующем открытии); запросы к базе не трогаем
 self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.hostname.endsWith("supabase.co")) return;
-  e.respondWith(fetch(e.request).then((r) => {
-    if (r.ok && u.origin === location.origin) {
-      const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy));
-    }
-    return r;
-  }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match("./index.html"))));
+  if (e.request.method !== "GET" || u.origin !== location.origin) return;
+  // приложение (…/remzona/, …/index.html, ?join=…) -- одна страница в кэше; прочие адреса -- как есть
+  const page = e.request.mode === "navigate" && /\/(index\.html)?$/.test(u.pathname), key = page ? "./index.html" : e.request;
+  e.respondWith(caches.open(CACHE).then(async (c) => {
+    const hit = await c.match(key, { ignoreSearch: true });
+    const old = page && hit ? hit.clone() : null;   // копия -- сам hit уходит браузеру, его тело потом не прочитать
+    const net = fetch(page ? u.origin + u.pathname : e.request, { cache: "no-cache" }).then(async (r) => {
+      if (!r.ok || r.type !== "basic") return r;
+      if (old && (await old.text()) !== (await r.clone().text())) {
+        await c.put(key, r.clone());
+        (await self.clients.matchAll({ type: "window" })).forEach((w) => w.postMessage({ type: "updated" }));
+      } else await c.put(key, r.clone());
+      return r;
+    });
+    if (hit) { e.waitUntil(net.catch(() => {})); return hit; }
+    return net.catch(() => c.match("./index.html"));
+  }));
 });
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
