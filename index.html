@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3F3F3F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ремзона ГЕ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Ремзона ГЕ</title>
+<style>
+:root {
+  --red: #C30013; --red-soft: #FBEAEC; --graphite: #3F3F3F; --graphite2: #5A5A5A;
+  --bg: #F5F5F5; --card: #FFFFFF; --line: #DADADA; --text: #222; --muted: #6B6B6B;
+  --green: #2E7D32; --green-soft: #E6F2E7; --amber: #B26A00; --amber-soft: #FFF3DC;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.35 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+body { padding-bottom: env(safe-area-inset-bottom); }
+button, input, select, textarea { font: inherit; color: inherit; }
+header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 3px solid var(--red);
+  padding: calc(8px + env(safe-area-inset-top)) 16px 8px; display: flex; align-items: center; gap: 10px; }
+header[hidden] { display: none; }
+header img { height: 26px; }
+header .who { margin-left: auto; text-align: right; font-size: 13px; line-height: 1.2; }
+header .who b { display: block; font-size: 14px; }
+#conn { font-size: 12px; color: var(--muted); }
+#conn.ok::before, #conn.off::before, #conn.wait::before { content: "●"; margin-right: 4px; }
+#conn.ok::before { color: var(--green); } #conn.off::before { color: #999; } #conn.wait::before { color: var(--amber); }
+.iconbtn { border: 0; background: none; padding: 6px; font-size: 20px; cursor: pointer; color: var(--graphite); }
+main { max-width: 720px; margin: 0 auto; padding: 12px 16px 96px; }
+h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .03em; color: var(--graphite2); margin: 20px 0 8px;
+  display: flex; align-items: center; gap: 8px; }
+h2 .n { background: var(--graphite); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; }
+.shift { background: var(--graphite); color: #fff; border-radius: 10px; padding: 10px 14px; display: flex;
+  justify-content: space-between; align-items: center; font-size: 15px; }
+.shift small { opacity: .75; }
+.big { width: 100%; border: 0; border-radius: 12px; background: var(--red); color: #fff; font-size: 19px; font-weight: 600;
+  padding: 16px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 6px rgba(195,0,19,.25); }
+.big:active { transform: scale(.99); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+  display: grid; grid-template-columns: 64px 1fr; gap: 2px 10px; cursor: pointer; position: relative; }
+.card.open { border-left: 5px solid var(--red); }
+.card.closed { border-left: 5px solid var(--green); }
+.card.new { box-shadow: 0 0 0 2px var(--red) inset; }
+.card .gar { grid-row: span 2; font-size: 26px; font-weight: 700; color: var(--graphite); align-self: center; text-align: center; }
+.card .gar small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.card .meta { font-size: 14px; color: var(--muted); }
+.card .meta b { color: var(--text); }
+.card .txt { font-size: 14px; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.badges { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.badge { font-size: 12px; border-radius: 6px; padding: 1px 7px; background: #EEE; color: var(--graphite2); }
+.badge.red { background: var(--red-soft); color: var(--red); } .badge.green { background: var(--green-soft); color: var(--green); }
+.badge.amber { background: var(--amber-soft); color: var(--amber); }
+.empty { color: var(--muted); text-align: center; padding: 18px; border: 1px dashed var(--line); border-radius: 12px; font-size: 14px; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; }
+.tab { flex: none; border: 1px solid var(--line); background: var(--card); border-radius: 20px; padding: 7px 14px; cursor: pointer; font-size: 15px; }
+.tab.on { background: var(--graphite); border-color: var(--graphite); color: #fff; }
+.tab .n { background: var(--red); color: #fff; border-radius: 9px; padding: 0 6px; font-size: 12px; margin-left: 4px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 15px; }
+.btn.red { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+.btn.dark { background: var(--graphite); border-color: var(--graphite); color: #fff; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn:disabled { opacity: .5; }
+.list { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.list > div { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #EEE; flex-wrap: wrap; }
+.list > div:last-child { border-bottom: 0; }
+.list .grow { flex: 1; min-width: 140px; }
+.off { opacity: .45; }
+/* форма */
+#sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; justify-content: center; }
+#sheet[hidden] { display: none; }
+.panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 100%; overflow-y: auto; border-radius: 16px 16px 0 0;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom)); }
+.panel .head { position: sticky; top: 0; background: var(--bg); padding: 14px 0 8px; display: flex; align-items: center; gap: 8px; z-index: 2; }
+.panel .head b { font-size: 18px; }
+.panel .head .iconbtn { margin-left: auto; }
+label.f { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.inp { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--card); font-size: 16px; }
+textarea.inp { min-height: 74px; resize: vertical; }
+.inp:focus { outline: 2px solid var(--graphite); border-color: transparent; }
+.inp:disabled { background: #EFEFEF; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--card); border-radius: 18px; padding: 7px 13px; cursor: pointer; font-size: 15px; }
+.chip.on { background: var(--graphite); color: #fff; border-color: var(--graphite); }
+.chip:disabled { opacity: .55; }
+.gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; margin-top: 8px; max-height: 176px; overflow-y: auto; }
+.gars button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 9px 0; font-weight: 600; cursor: pointer; }
+.gars button.busy { border-color: var(--red); color: var(--red); }
+.gars button.on { background: var(--graphite); color: #fff; }
+.timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; }
+.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 8px 12px; font-size: 14px; margin-top: 8px; }
+.actions { display: flex; gap: 8px; margin-top: 18px; } .actions .btn { flex: 1; padding: 13px; font-size: 16px; }
+/* вход */
+.login { max-width: 420px; margin: 0 auto; padding: 24px 16px; text-align: center; }
+.login img { height: 40px; margin: 16px 0 6px; }
+.login h1 { font-size: 20px; margin: 6px 0 18px; color: var(--graphite); }
+.names { display: grid; gap: 8px; text-align: left; }
+.names button { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 13px 14px; font-size: 17px; cursor: pointer;
+  display: flex; justify-content: space-between; }
+.names button small { color: var(--muted); }
+.dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
+.dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--graphite); }
+.dots i.on { background: var(--graphite); }
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
+.pad button { border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 16px 0; font-size: 24px; cursor: pointer; }
+.pad button:active { background: #EAEAEA; }
+.err { color: var(--red); min-height: 22px; margin-top: 8px; font-size: 15px; }
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
+  display: grid; gap: 6px; width: min(92vw, 520px); pointer-events: none; }
+#toast div { background: var(--graphite); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  border-left: 5px solid var(--red); animation: up .25s ease; }
+#toast div.bad { background: var(--red); border-left-color: #7a0010; }
+@keyframes up { from { transform: translateY(12px); opacity: 0; } }
+.hint { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 12px;
+  display: flex; gap: 8px; align-items: center; }
+.hint .grow { flex: 1; }
+</style>
+</head>
+<body>
+<header id="top" hidden>
+  <img src="logo.png" alt="Горная Евразия">
+  <div class="who"><b id="whoName"></b><span id="conn">…</span></div>
+  <button class="iconbtn" data-act="logout" title="Выйти">⎋</button>
+</header>
+<main id="app"><div class="login"><img src="logo.png" alt=""><h1>Ремзона ГЕ</h1><p>Загрузка…</p></div></main>
+<div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+"use strict";
+// ---------- настройки ----------
+const SB_URL = "https://inprxlthecccuvkjpvpo.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHJ4bHRoZWNjY3V2a2pwdnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzM1MjYsImV4cCI6MjEwODgwOTUyNn0.IucSKrdhmzzSze-VEn2Za7Bmy2BvYTeCKnnEs6LPfjs";
+const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
+const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
+const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
+
+const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rz_auth" } });
+const pinPassword = (pin, login) => `ge-${pin}-${login}`;
+
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const S = {
+  me: null, machines: load("rz_machines", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
+  queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: false,
+};
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isAdmin = () => S.me?.role === "admin";
+const netErr = (e) => !navigator.onLine || /fetch|network|load failed|timeout|offline/i.test(String(e?.message || e));
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "x" + Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+// ---------- время и смены ----------
+const pad2 = (n) => String(n).padStart(2, "0");
+const dm = (d) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
+const hm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const fmt = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${dm(d)} ${hm(d)}`; };
+const toInput = (iso) => { if (!iso) return ""; const d = new Date(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${hm(d)}`; };
+const fromInput = (v) => (v ? new Date(v).toISOString() : null);
+function dur(a, b) {
+  let m = Math.max(0, Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 60000));
+  const d = Math.floor(m / 1440); m -= d * 1440; const h = Math.floor(m / 60); m -= h * 60;
+  return d ? `${d} д ${h} ч` : h ? `${h} ч ${m} мин` : `${m} мин`;
+}
+function shiftOf(t = new Date()) {
+  const d = new Date(t); const h = d.getHours();
+  if (h >= NIGHT_START) { const n = new Date(d); n.setDate(n.getDate() + 1); n.setHours(0, 0, 0, 0);
+    const st = new Date(d); st.setHours(NIGHT_START, 0, 0, 0); return { date: n, n: 1, start: st }; }
+  if (h < DAY_START) { const st = new Date(d); st.setDate(st.getDate() - 1); st.setHours(NIGHT_START, 0, 0, 0);
+    const n = new Date(d); n.setHours(0, 0, 0, 0); return { date: n, n: 1, start: st }; }
+  const st = new Date(d); st.setHours(DAY_START, 0, 0, 0); const n = new Date(d); n.setHours(0, 0, 0, 0); return { date: n, n: 2, start: st };
+}
+const shiftText = (s) => `${dm(s.date)}.${s.date.getFullYear()} · смена ${s.n} (${s.n === 1 ? "ночь" : "день"})`;
+
+// ---------- уведомления ----------
+function toast(msg, bad) {
+  const el = document.createElement("div"); el.textContent = msg; if (bad) el.className = "bad";
+  $("#toast").appendChild(el); setTimeout(() => el.remove(), bad ? 6000 : 4000);
+}
+let audioCtx = null;
+function beep() {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.18, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+    o.start(); o.stop(audioCtx.currentTime + 0.36); } catch {}
+}
+async function sysNotify(title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) reg.showNotification(title, { body, icon: "icon-192.png", tag: title, renotify: true });
+    else new Notification(title, { body, icon: "icon-192.png" }); } catch {}
+}
+function announce(row, prev) {
+  if (!S.me || row.mechanic_id === S.me.id) return;
+  const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : "дополнено";
+  const msg = `${row.gar} — ${what}${row.mechanic_name ? " · " + row.mechanic_name : ""}`;
+  toast(msg); beep(); navigator.vibrate?.([120, 60, 120]);
+  if (document.hidden) sysNotify("Ремзона: " + msg, [row.kind, row.fault || row.work].filter(Boolean).join(" · "));
+  document.title = `(${newCount()}) Ремзона ГЕ`;
+}
+
+// ---------- очередь записи (без связи копится, уходит при появлении) ----------
+function saveQ() { save("rz_queue", S.queue); renderConn(); }
+function enqueue(cid, data, isNew, id) {
+  const ex = S.queue.find((q) => q.cid === cid);
+  if (ex) Object.assign(ex.data, data); else S.queue.push({ cid, id, isNew, data });
+  saveQ(); render(); flush();
+}
+async function flush() {
+  if (S.flushing || !S.queue.length || !S.me) return;
+  S.flushing = true;
+  try {
+    while (S.queue.length) {
+      const q = S.queue[0]; let res;
+      if (q.isNew) res = await sb.from("jobs").upsert({ ...q.data, client_id: q.cid }, { onConflict: "client_id" }).select().single();
+      else if (q.cid) res = await sb.from("jobs").update(q.data).eq("client_id", q.cid).select().single();
+      else res = await sb.from("jobs").update(q.data).eq("id", q.id).select().single();
+      if (res.error) {
+        if (netErr(res.error)) break;
+        toast("Не сохранено (" + (q.data.gar || "") + "): " + res.error.message, true);
+      } else { S.jobs.set(res.data.id, res.data); }
+      S.queue.shift(); saveQ();
+    }
+  } finally { S.flushing = false; cacheJobs(); renderConn(); render(); }
+}
+// записи с учётом неотправленного
+function allJobs() {
+  const m = new Map(S.jobs);
+  for (const q of S.queue) {
+    let j = [...m.values()].find((x) => (q.cid && x.client_id === q.cid) || (q.id && x.id === q.id));
+    if (j) m.set(j.id, { ...j, ...q.data, pending: true });
+    else if (q.isNew) m.set("q:" + q.cid, { id: "q:" + q.cid, client_id: q.cid, mechanic_id: S.me?.id, mechanic_name: S.me?.name,
+      rev: 1, imported_rev: 0, updated_at: new Date().toISOString(), ...q.data, pending: true });
+  }
+  return [...m.values()].filter((j) => !j.deleted);
+}
+const cacheJobs = () => save("rz_jobs", [...S.jobs.values()]);
+
+// ---------- данные ----------
+async function loadAll() {
+  const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
+  const [m, j, st] = await Promise.all([
+    sb.from("machines").select("*").order("gar"),
+    sb.from("jobs").select("*").eq("deleted", false).or(`ended_at.is.null,updated_at.gte.${since}`).order("started_at", { ascending: false }).limit(500),
+    isAdmin() ? sb.from("staff").select("*").order("role", { ascending: false }).order("name") : Promise.resolve({ data: [] }),
+  ]);
+  if (m.error || j.error) throw (m.error || j.error);
+  S.machines = m.data; save("rz_machines", S.machines);
+  S.jobs = new Map(j.data.map((x) => [x.id, x])); cacheJobs();
+  S.staff = st.data || [];
+}
+function subscribe() {
+  if (S.channel) sb.removeChannel(S.channel);
+  S.channel = sb.channel("jobs-" + uuid()).on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (p) => {
+    if (p.eventType === "DELETE") { S.jobs.delete(p.old?.id); }
+    else {
+      const row = p.new, prev = S.jobs.get(row.id);
+      if (row.deleted) S.jobs.delete(row.id); else S.jobs.set(row.id, row);
+      if (!row.deleted && (!prev || prev.rev !== row.rev)) announce(row, prev);
+    }
+    cacheJobs(); render();
+  }).subscribe((status) => { S.rt = status; renderConn(); });
+}
+
+// ---------- вход ----------
+// списка сотрудников на странице нет: фамилию вводят, сервер отдаёт только совпадения (login_find)
+localStorage.removeItem("rz_logins"); localStorage.removeItem("rz_last");
+let L = { pick: load("rz_pick", null), found: [], q: "", first: false, pin: "", err: "" };
+async function showLogin(msg) {
+  S.me = null; $("#top").hidden = true; document.title = "Ремзона ГЕ";
+  L.err = msg || ""; L.pin = ""; L.found = [];
+  try { const { data, error } = await sb.rpc("staff_exists"); if (error) throw error; L.first = !data; }
+  catch (e) { L.first = false; if (!L.pick) L.err = "Нет связи с сервером. Проверьте интернет."; }
+  renderLogin();
+}
+async function findName() {
+  L.q = $("#lName").value.trim();
+  if (L.q.length < 2) { L.err = "Введите фамилию"; return renderLogin(); }
+  L.err = "Поиск…"; renderLogin();
+  const { data, error } = await sb.rpc("login_find", { p_name: L.q });
+  if (error) { L.found = []; L.err = netErr(error) ? "Нет связи с сервером" : error.message; return renderLogin(); }
+  L.found = data || [];
+  if (L.found.length === 1) { L.pick = L.found[0]; L.err = ""; }
+  else L.err = L.found.length ? "Выберите себя" : "Не найдено — проверьте фамилию или обратитесь к администратору";
+  renderLogin();
+}
+function renderLogin() {
+  const app = $("#app");
+  if (L.first) {
+    app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>Первый запуск</h1>
+      <p style="color:var(--muted);font-size:15px">Создайте учётную запись сервисного администратора. Механиков он добавит сам.</p>
+      <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="bName" placeholder="Умаров Р.К.">
+      <label class="f" style="text-align:left">PIN — 4 цифры</label><input class="inp" id="bPin" inputmode="numeric" maxlength="4" type="password">
+      <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="bPin2" inputmode="numeric" maxlength="4" type="password">
+      <button class="big" data-act="bootstrap">Создать администратора</button><div class="err" id="lerr"></div></div>`;
+    return;
+  }
+  if (!L.pick) {
+    const names = L.found.length > 1 ? `<div class="names">${L.found.map((x) => `<button data-act="pick" data-login="${esc(x.login)}">${esc(x.name)}<small>›</small></button>`).join("")}</div>` : "";
+    app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>Ремзона ГЕ — вход</h1>
+      <label class="f" style="text-align:left">Фамилия</label><input class="inp" id="lName" autocomplete="off" placeholder="Например, Иванов">
+      <button class="big" data-act="find">Далее</button>${names}<div class="err">${esc(L.err)}</div></div>`;
+    $("#lName").value = L.q;
+    return;
+  }
+  app.innerHTML = `<div class="login"><img src="logo.png" alt=""><h1>${esc(L.pick.name)}</h1>
+    <div style="color:var(--muted)">Введите PIN</div>
+    <div class="dots">${[0, 1, 2, 3].map((i) => `<i class="${i < L.pin.length ? "on" : ""}"></i>`).join("")}</div>
+    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-act="digit" data-d="${n}">${n}</button>`).join("")}
+      <button data-act="other" style="font-size:15px">Другой</button><button data-act="digit" data-d="0">0</button><button data-act="back">⌫</button></div>
+    <div class="err">${esc(L.err)}</div></div>`;
+}
+async function tryPin() {
+  const p = L.pick, pin = L.pin;
+  L.err = "Вход…"; renderLogin();
+  const { error } = await sb.auth.signInWithPassword({ email: `${p.login}@remzona.app`, password: pinPassword(pin, p.login) });
+  if (error) { L.pin = ""; L.err = /invalid/i.test(error.message) ? "Неверный PIN" : netErr(error) ? "Нет связи с сервером" : error.message; renderLogin(); return; }
+  save("rz_pick", p); L.pin = ""; L.err = "";
+  await enter();
+}
+async function bootstrap() {
+  const name = $("#bName").value.trim(), pin = $("#bPin").value.trim(), pin2 = $("#bPin2").value.trim();
+  const err = (m) => { $("#lerr").textContent = m; };
+  if (!name) return err("Укажите фамилию");
+  if (!/^\d{4}$/.test(pin)) return err("PIN — ровно 4 цифры");
+  if (pin !== pin2) return err("PIN не совпадает");
+  err("Создаю…");
+  const r = await callAdmin({ action: "bootstrap", name, pin });
+  if (r.error) return err(r.error);
+  L.first = false; L.pick = { name, login: r.login, role: "admin" }; L.pin = pin; await tryPin();
+}
+
+async function enter() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return showLogin();
+  let me = null;
+  const r = await sb.from("staff").select("*").eq("id", session.user.id).maybeSingle();
+  if (r.error && netErr(r.error)) { const c = load("rz_me", null); if (c && c.id === session.user.id) me = c; }
+  else me = r.data;
+  if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт — обратитесь к сервисному администратору"); }
+  S.me = me; save("rz_me", me);
+  $("#top").hidden = false; $("#whoName").textContent = me.name + (isAdmin() ? " · администратор" : "");
+  S.tab = isAdmin() ? "feed" : "main";
+  try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
+  subscribe(); render(); flush();
+}
+
+// ---------- экраны ----------
+const newCount = () => allJobs().filter((j) => j.mechanic_id !== S.me?.id && new Date(j.updated_at).getTime() > S.seen).length;
+function renderConn() {
+  const c = $("#conn"); if (!c) return;
+  const n = S.queue.length;
+  if (n) { c.className = "wait"; c.textContent = `не отправлено: ${n}`; }
+  else if (!navigator.onLine) { c.className = "off"; c.textContent = "нет связи"; }
+  else if (S.rt === "SUBSCRIBED") { c.className = "ok"; c.textContent = "на связи"; }
+  else { c.className = "off"; c.textContent = "подключение…"; }
+}
+function card(j, opts = {}) {
+  const m = S.machines.find((x) => x.gar === j.gar);
+  const open = !j.ended_at;
+  const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
+  const times = `заезд ${fmt(j.started_at)}` + (open ? ` · ${dur(j.started_at)}` : ` · выезд ${fmt(j.ended_at)} · ${dur(j.started_at, j.ended_at)}`);
+  const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
+  const b = [];
+  if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
+  if (isAdmin() && !j.pending) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
+  if (isNew) b.push(`<span class="badge red">новое</span>`);
+  if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
+  if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
+  return `<div class="card ${open ? "open" : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
+    <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
+    <div class="meta"><b>${esc(j.kind)}</b> · ${esc(j.mechanic_name || "—")}<br>${times}</div>
+    ${txt ? `<div class="txt" style="grid-column:2">${esc(txt)}</div>` : ""}
+    ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div>`;
+}
+const list = (xs, opts, empty) => (xs.length ? xs.map((j) => card(j, opts)).join("") : `<div class="empty">${empty}</div>`);
+function installHint() {
+  if (load("rz_hint_off", false) || matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "";
+  const ios = /iphone|ipad/i.test(navigator.userAgent);
+  return `<div class="hint"><span class="grow">📲 Добавьте приложение на экран телефона: ${ios ? "кнопка «Поделиться» → «На экран „Домой“»" :
+    "меню браузера ⋮ → «Добавить на главный экран»"}.</span>${deferredInstall ? `<button class="btn small dark" data-act="install">Установить</button>` : ""}
+    <button class="btn small" data-act="hintoff">✕</button></div>`;
+}
+function render() {
+  if (!S.me) return;
+  const js = allJobs(), sh = shiftOf();
+  const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
+  const head = `<div class="shift"><span>${shiftText(sh)}</span><small>${hm(new Date())}</small></div>`;
+  let h = "";
+  if (!isAdmin()) {
+    const mine = js.filter((j) => j.ended_at && j.mechanic_id === S.me.id && new Date(j.ended_at) >= sh.start)
+      .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
+    h = `${head}<button class="big" data-act="new">＋ Заезд машины</button>${installHint()}
+      <h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}
+      <h2>Мои выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
+  } else {
+    const nc = newCount();
+    const tabs = [["feed", "Лента", nc], ["open", "На площадке", 0], ["staff", "Сотрудники", 0], ["cars", "Машины", 0]];
+    h = `<div class="tabs">${tabs.map(([k, t, n]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${t}${k === "open" ? ` (${openJ.length})` : ""}${n ? `<span class="n">${n}</span>` : ""}</button>`).join("")}</div>`;
+    if (S.tab === "feed") {
+      const feed = [...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+      const notIn = js.filter((j) => j.rev > j.imported_rev).length;
+      h += `<div style="margin-top:12px">${head}</div>
+        <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
+        ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
+        ${"Notification" in window && Notification.permission === "default" ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
+        <span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span></div>
+        ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
+    } else if (S.tab === "open") {
+      h += `<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
+    } else if (S.tab === "staff") {
+      h += `<h2>Сотрудники</h2><div class="list">${S.staff.map((s) => `<div class="${s.active ? "" : "off"}">
+          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.active ? "" : " · отключён"}</small></span>
+          <button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>
+          ${s.id === S.me.id ? "" : `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>`}</div>`).join("") || `<div>Нет сотрудников</div>`}</div>
+        <h2>Добавить сотрудника</h2>
+        <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="nsName" placeholder="Метелкин А.В.">
+        <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button><button class="chip" data-act="role" data-v="admin">Администратор</button></div>
+        <label class="f">PIN — 4 цифры (сообщите сотруднику)</label><div class="timebox"><input class="inp" id="nsPin" inputmode="numeric" maxlength="4"><button class="btn" data-act="genpin">Случайный</button></div>
+        <div class="actions"><button class="btn red" data-act="addstaff">Добавить</button></div>`;
+    } else if (S.tab === "cars") {
+      const act = S.machines.filter((m) => m.active), off = S.machines.filter((m) => !m.active);
+      const grid = (xs) => `<div class="gars">${xs.map((m) => `<button data-act="car" data-gar="${esc(m.gar)}" title="${esc(m.model)}">${esc(m.gar)}</button>`).join("")}</div>`;
+      h += `<h2>На участке <span class="n">${act.length}</span></h2><div style="font-size:13px;color:var(--muted)">Нажмите на номер, чтобы убрать с участка (в списке выбора у механиков его не будет).</div>${grid(act)}
+        <h2>Не на участке <span class="n">${off.length}</span></h2>${grid(off)}
+        <h2>Добавить машину</h2><div class="timebox"><input class="inp" id="ncGar" inputmode="numeric" placeholder="Гар. №">
+        <select class="inp" id="ncModel"><option>NTE 240</option><option>TR100A</option></select><button class="btn red" data-act="addcar">Добавить</button></div>`;
+    }
+  }
+  $("#app").innerHTML = h;
+  renderConn();
+}
+
+// ---------- карточка заезда ----------
+function openJob(id) {
+  const j = id ? allJobs().find((x) => x.id === id) : null;
+  const can = !j || isAdmin() || j.mechanic_id === S.me.id;
+  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт" };
+  const dis = can ? "" : "disabled";
+  $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
+      ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
+    ${can ? "" : `<div class="warn">Запись другого механика — только просмотр.</div>`}
+    <label class="f">Гаражный номер</label>
+    <input class="inp" id="fGar" inputmode="numeric" placeholder="Начните вводить номер" value="${esc(S.edit.gar)}" ${dis} autocomplete="off">
+    <div class="gars" id="garGrid"></div><div id="garWarn"></div>
+    <label class="f">Вид работ</label>
+    <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
+    <div class="chips" id="toChips" style="margin-top:6px"></div>
+    <label class="f">Время заезда</label>
+    <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
+      <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
+    <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
+    <label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
+    <div class="timebox"><div style="flex:1"><label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}></div></div>
+    <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
+    <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>
+    ${j ? `<label class="f">Время выезда</label>
+      <div class="timebox"><input class="inp" type="datetime-local" id="fEnd" value="${toInput(j.ended_at)}" ${dis}>
+      <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
+    <div class="actions">${can ? (j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
+      : `<button class="btn red" data-act="savejob">Отметить заезд</button>`) : ""}</div>
+    ${j && isAdmin() ? `<div class="actions"><button class="btn small" data-act="deljob">Удалить запись</button></div>` : ""}`;
+  $("#sheet").hidden = false;
+  drawGars(); drawTo();
+  $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
+  if (!j) setTimeout(() => $("#fGar").focus(), 50);
+}
+function drawGars() {
+  const e = S.edit, q = e.gar, busy = new Set(allJobs().filter((x) => !x.ended_at && x.id !== e.j?.id).map((x) => x.gar));
+  const xs = S.machines.filter((m) => (m.active || m.gar === q) && (!q || m.gar.startsWith(q)));
+  $("#garGrid").innerHTML = e.can && !(xs.length === 1 && xs[0].gar === q) ?
+    xs.slice(0, 60).map((m) => `<button class="${busy.has(m.gar) ? "busy" : ""} ${m.gar === q ? "on" : ""}" data-act="gar" data-gar="${m.gar}">${m.gar}</button>`).join("") : "";
+  const o = busy.has(q) && allJobs().find((x) => !x.ended_at && x.gar === q && x.id !== e.j?.id);
+  $("#garWarn").innerHTML = o ? `<div class="warn">Машина ${esc(q)} уже на площадке: заезд ${fmt(o.started_at)}, ${esc(o.mechanic_name || "")}. Лучше дополнить ту запись.</div>`
+    : q && !S.machines.some((m) => m.gar === q) ? `<div class="warn">Номера ${esc(q)} нет в списке машин участка.</div>` : "";
+}
+function drawTo() {
+  $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
+    [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
+}
+function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
+function saveJob(exitNow) {
+  const e = S.edit, j = e.j;
+  const gar = $("#fGar").value.trim();
+  if (!S.machines.some((m) => m.gar === gar)) return toast("Выберите гаражный номер из списка", true);
+  const started = fromInput($("#fStart").value);
+  if (!started) return toast("Укажите время заезда", true);
+  let ended = j ? fromInput($("#fEnd")?.value) : null;
+  if (exitNow) ended = new Date().toISOString();
+  // таблицы считают по минутам: выезд -- хотя бы на минуту позже заезда
+  if (ended && Math.floor(new Date(ended) / 60000) <= Math.floor(new Date(started) / 60000)) return toast("Выезд должен быть позже заезда (хотя бы на минуту)", true);
+  if (new Date(started) > new Date(Date.now() + 10 * 60000)) return toast("Время заезда в будущем — проверьте", true);
+  const motoS = $("#fMoto").value.replace(",", ".").trim();
+  if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
+  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: $("#fFault").value.trim(), work: $("#fWork").value.trim(),
+    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim() };
+  if (!j) {
+    const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
+    if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
+    enqueue(uuid(), data, true);
+    toast(`${gar}: заезд отмечен ${hm(new Date(started))}`);
+  } else {
+    const cid = j.client_id || null;
+    enqueue(cid, data, false, j.id.startsWith("q:") ? null : j.id);
+    toast(`${gar}: ${exitNow ? "выезд отмечен" : "сохранено"}`);
+  }
+  closeSheet();
+}
+
+// ---------- администратор ----------
+async function callAdmin(body) {
+  try {
+    const { data, error } = await sb.functions.invoke("staff-admin", { body });
+    if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch {} return { error: m }; }
+    return data;
+  } catch (e) { return { error: netErr(e) ? "Нет связи с сервером" : String(e.message || e) }; }
+}
+async function reloadStaff() { const r = await sb.from("staff").select("*").order("role", { ascending: false }).order("name"); if (!r.error) S.staff = r.data; render(); }
+const randPin = () => String(Math.floor(1000 + Math.random() * 9000));
+
+// ---------- действия ----------
+let deferredInstall = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; render(); });
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("[data-act]"); if (!t || t.disabled) return;
+  const a = t.dataset.act;
+  if (audioCtx === null) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+  switch (a) {
+    case "find": findName(); break;
+    case "pick": L.pick = L.found.find((x) => x.login === t.dataset.login); L.pin = ""; L.err = ""; renderLogin(); break;
+    case "other": L.pick = null; L.found = []; L.q = ""; L.pin = ""; L.err = ""; renderLogin(); break;
+    case "digit": if (L.pin.length < 4) { L.pin += t.dataset.d; L.err = ""; renderLogin(); if (L.pin.length === 4) tryPin(); } break;
+    case "back": L.pin = L.pin.slice(0, -1); renderLogin(); break;
+    case "bootstrap": bootstrap(); break;
+    case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
+      if (S.channel) sb.removeChannel(S.channel); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
+    case "tab": S.tab = t.dataset.tab; render(); break;
+    case "new": openJob(null); break;
+    case "job": openJob(t.dataset.id); break;
+    case "close": closeSheet(); break;
+    case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
+    case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
+    case "to": { const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
+    case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); break;
+    case "savejob": saveJob(false); break;
+    case "exit": saveJob(true); break;
+    case "deljob": if (confirm("Удалить запись? У механика она тоже пропадёт.")) { const j = S.edit.j;
+      enqueue(j.client_id || null, { deleted: true }, false, j.id.startsWith("q:") ? null : j.id); closeSheet(); } break;
+    case "seen": S.seen = Date.now(); save("rz_seen", S.seen); document.title = "Ремзона ГЕ"; render(); break;
+    case "notif": await Notification.requestPermission(); render(); break;
+    case "install": if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; render(); } break;
+    case "hintoff": save("rz_hint_off", true); render(); break;
+    case "role": document.querySelectorAll("#nsRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "genpin": $("#nsPin").value = randPin(); break;
+    case "addstaff": {
+      const name = $("#nsName").value.trim(), pin = $("#nsPin").value.trim(), role = document.querySelector("#nsRole .chip.on").dataset.v;
+      if (!name || !/^\d{4}$/.test(pin)) return toast("Нужны фамилия и PIN из 4 цифр", true);
+      t.disabled = true; const r = await callAdmin({ action: "create", name, role, pin }); t.disabled = false;
+      if (r.error) return toast(r.error, true);
+      toast(`${name} добавлен. PIN: ${pin}`); reloadStaff(); break;
+    }
+    case "pin": { const s = S.staff.find((x) => x.id === t.dataset.id); const pin = prompt(`Новый PIN для ${s.name} (4 цифры):`, randPin());
+      if (pin === null) return; if (!/^\d{4}$/.test(pin)) return toast("PIN — 4 цифры", true);
+      const r = await callAdmin({ action: "set_pin", id: s.id, pin }); toast(r.error || `PIN для ${s.name}: ${pin}`, !!r.error); break; }
+    case "active": { const r = await callAdmin({ action: "set_active", id: t.dataset.id, active: t.dataset.on === "1" });
+      if (r.error) toast(r.error, true); reloadStaff(); break; }
+    case "car": { const m = S.machines.find((x) => x.gar === t.dataset.gar);
+      const r = await sb.from("machines").update({ active: !m.active }).eq("gar", m.gar);
+      if (r.error) return toast(r.error.message, true); m.active = !m.active; save("rz_machines", S.machines); render(); break; }
+    case "addcar": { const gar = $("#ncGar").value.trim(), model = $("#ncModel").value;
+      if (!/^\d{3,4}$/.test(gar)) return toast("Гаражный номер — 3–4 цифры", true);
+      const r = await sb.from("machines").upsert({ gar, model, active: true });
+      if (r.error) return toast(r.error.message, true);
+      const m = S.machines.find((x) => x.gar === gar); if (m) { m.active = true; m.model = model; } else S.machines.push({ gar, model, active: true });
+      S.machines.sort((x, y) => x.gar.localeCompare(y.gar, "ru", { numeric: true })); save("rz_machines", S.machines); toast(`Машина ${gar} добавлена`); render(); break; }
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (!S.me && L.pick && /^\d$/.test(e.key) && L.pin.length < 4) { L.pin += e.key; renderLogin(); if (L.pin.length === 4) tryPin(); }
+  if (e.key === "Enter" && e.target.id === "lName") findName();
+  if (e.key === "Escape" && !$("#sheet").hidden) closeSheet();
+});
+$("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+
+// связь появилась / приложение снова на экране -- отправить очередь и обновить
+async function refresh() { if (!S.me || !navigator.onLine) return; flush(); try { await loadAll(); render(); } catch {} }
+window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
+window.addEventListener("offline", renderConn);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); } });
+setInterval(() => { if (S.me && $("#sheet").hidden) render(); }, 60000);   // длительность «на площадке»
+setInterval(refresh, 120000);
+sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_OUT" && S.me) showLogin(); });
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+enter();
+</script>
+</body>
+</html>
