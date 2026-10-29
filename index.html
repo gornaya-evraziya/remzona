@@ -505,13 +505,16 @@ function render() {
     } else if (S.tab === "open") {
       h += `${head}<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
     } else if (S.tab === "staff") {
+      // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
+      const own = !!S.me.owner, mine = (s) => s.id === S.me.id || s.role === "mechanic";
       h += `<h2>Сотрудники</h2><div class="list">${S.staff.map((s) => `<div class="${s.active ? "" : "off"}">
-          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.active ? "" : " · отключён"}</small></span>
-          <button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>
-          ${s.id === S.me.id ? "" : `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>`}</div>`).join("") || `<div>Нет сотрудников</div>`}</div>
+          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${s.active ? "" : " · отключён"}</small></span>
+          ${own ? `<button class="btn small" data-act="staff" data-id="${s.id}">Изменить</button>` : `
+          ${mine(s) ? `<button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>` : ""}
+          ${s.id !== S.me.id && mine(s) ? `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>` : ""}`}</div>`).join("") || `<div>Нет сотрудников</div>`}</div>
         <h2>Добавить сотрудника</h2>
         <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="nsName" placeholder="Метелкин А.В.">
-        <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button><button class="chip" data-act="role" data-v="admin">Администратор</button></div>
+        <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button>${own ? `<button class="chip" data-act="role" data-v="admin">Администратор</button>` : ""}</div>
         <label class="f">PIN — 4 цифры (сообщите сотруднику)</label><div class="timebox"><input class="inp" id="nsPin" inputmode="numeric" maxlength="4"><button class="btn" data-act="genpin">Случайный</button></div>
         <div class="actions"><button class="btn red" data-act="addstaff">Добавить</button></div>`;
     } else if (S.tab === "cars") {
@@ -628,6 +631,22 @@ async function callAdmin(body) {
     return data;
   } catch (e) { return { error: netErr(e) ? "Нет связи с сервером" : String(e.message || e) }; }
 }
+// карточка сотрудника -- только у владельца: ФИО, роль, PIN, отключение, удаление
+function openStaff(id) {
+  const s = S.staff.find((x) => x.id === id), self = s.id === S.me.id;
+  S.edit = { staff: s, role: s.role };
+  $("#panel").innerHTML = `<div class="head"><b>${esc(s.name)}</b>${s.owner ? `<span class="badge">владелец</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
+    <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="seName" value="${esc(s.name)}">
+    <label class="f">Роль</label><div class="chips" id="seRole">${[["mechanic", "Механик"], ["admin", "Администратор"]].map(([v, t]) =>
+      `<button class="chip ${s.role === v ? "on" : ""}" data-act="serole" data-v="${v}" ${self ? "disabled" : ""}>${t}</button>`).join("")}</div>
+    <div class="actions"><button class="btn red" data-act="savestaff">Сохранить</button></div>
+    <h2>Доступ</h2>
+    <div class="row"><button class="btn" data-act="pin" data-id="${s.id}">Новый PIN</button>
+      ${self ? "" : `<button class="btn" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>`}</div>
+    ${self ? "" : `<h2>Удаление</h2><div style="font-size:14px;color:var(--muted)">Учётная запись удаляется насовсем. Записи о работах остаются с его фамилией.</div>
+      <div class="actions"><button class="btn" style="color:var(--red);border-color:var(--red)" data-act="delstaff">Удалить сотрудника</button></div>`}`;
+  $("#sheet").hidden = false;
+}
 async function reloadStaff() { const r = await sb.from("staff").select("*").order("role", { ascending: false }).order("name"); if (!r.error) S.staff = r.data; render(); }
 const randPin = () => String(Math.floor(1000 + Math.random() * 9000));
 
@@ -682,7 +701,20 @@ document.addEventListener("click", async (ev) => {
       if (pin === null) return; if (!/^\d{4}$/.test(pin)) return toast("PIN — 4 цифры", true);
       const r = await callAdmin({ action: "set_pin", id: s.id, pin }); toast(r.error || `PIN для ${s.name}: ${pin}`, !!r.error); break; }
     case "active": { const r = await callAdmin({ action: "set_active", id: t.dataset.id, active: t.dataset.on === "1" });
-      if (r.error) toast(r.error, true); reloadStaff(); break; }
+      if (r.error) toast(r.error, true); else if (!$("#sheet").hidden) closeSheet(); reloadStaff(); break; }
+    case "staff": openStaff(t.dataset.id); break;
+    case "serole": S.edit.role = t.dataset.v; document.querySelectorAll("#seRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "savestaff": { const s = S.edit.staff, name = $("#seName").value.trim();
+      if (!name) return toast("Укажите фамилию", true);
+      t.disabled = true; const r = await callAdmin({ action: "update", id: s.id, name, role: S.edit.role }); t.disabled = false;
+      if (r.error) return toast(r.error, true);
+      if (s.id === S.me.id) { S.me.name = name; save("rz_me", S.me); $("#whoName").textContent = name; }
+      toast(`${name}: сохранено`); closeSheet(); reloadStaff(); break; }
+    case "delstaff": { const s = S.edit.staff;
+      if (!confirm(`Удалить «${s.name}» насовсем? Войти он больше не сможет, восстановить нельзя.`)) return;
+      t.disabled = true; const r = await callAdmin({ action: "delete", id: s.id }); t.disabled = false;
+      if (r.error) return toast(r.error, true);
+      toast(`${s.name} удалён`); closeSheet(); reloadStaff(); break; }
     case "car": { const m = S.machines.find((x) => x.gar === t.dataset.gar);
       const r = await sb.from("machines").update({ active: !m.active }).eq("gar", m.gar);
       if (r.error) return toast(r.error.message, true); m.active = !m.active; save("rz_machines", S.machines); render(); break; }
