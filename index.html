@@ -77,6 +77,7 @@ h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 1
 .card:active { background: var(--press); }
 .card.open { border-left-color: var(--red); }
 .card.closed { border-left-color: var(--green); }
+.card.ready { border-left-color: var(--amber); }
 .card.new { box-shadow: 0 0 0 2px var(--red); }
 .card .gar { flex: none; width: 74px; align-self: center; text-align: center; font-size: 30px; font-weight: 800; line-height: 1.05;
   color: var(--strong); letter-spacing: -.01em; }
@@ -86,7 +87,7 @@ h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 1
 .card .kind { font-weight: 700; color: var(--strong); flex: none; }
 .card .mech { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .st { font-size: 15px; font-weight: 600; margin-top: 3px; }
-.card .st.open { color: var(--red); } .card .st.done { color: var(--green); }
+.card .st.open { color: var(--red); } .card .st.done { color: var(--green); } .card .st.wait { color: var(--amber); }
 .card .st span { font-size: 14px; font-weight: 400; color: var(--muted); }
 .card .txt { font-size: 14px; margin-top: 5px; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
@@ -197,6 +198,7 @@ details.more label.f:first-of-type { margin-top: 0; }
 const SB_URL = "https://inprxlthecccuvkjpvpo.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHJ4bHRoZWNjY3V2a2pwdnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzM1MjYsImV4cCI6MjEwODgwOTUyNn0.IucSKrdhmzzSze-VEn2Za7Bmy2BvYTeCKnnEs6LPfjs";
 const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
+const WAITS = ["Нет водителя", "Распоряжение диспетчера", "Пересменка / обед"];   // готова, ждёт не по нашей вине; + «Другое» текстом
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
 
@@ -281,7 +283,7 @@ async function sysNotify(title, body) {
 }
 function announce(row, prev) {
   if (!S.me || row.mechanic_id === S.me.id) return;
-  const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : "дополнено";
+  const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : (!prev.ready_at && row.ready_at) ? "готова, ждёт: " + (row.wait_reason || "—").toLowerCase() : "дополнено";
   const msg = `${row.gar} — ${what}${row.mechanic_name ? " · " + row.mechanic_name : ""}`;
   toast(msg); beep(); navigator.vibrate?.([120, 60, 120]);
   if (document.hidden) sysNotify("Ремзона: " + msg, [row.kind, row.fault || row.work].filter(Boolean).join(" · "));
@@ -448,16 +450,19 @@ function card(j, opts = {}) {
   const m = S.machines.find((x) => x.gar === j.gar);
   const open = !j.ended_at;
   const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
-  const st = open ? `<div class="st open">На площадке ${dur(j.started_at)} <span>· с ${when(j.started_at)}</span></div>`
-    : `<div class="st done">Выехала ${when(j.ended_at)} <span>· стояла ${dur(j.started_at, j.ended_at)}</span></div>`;
+  const ready = !!j.ready_at, why = esc((j.wait_reason || "").toLowerCase());
+  const st = open && ready ? `<div class="st wait">Готова, ждёт ${dur(j.ready_at)}${why ? ` — ${why}` : ""} <span>· ремонт ${dur(j.started_at, j.ready_at)}</span></div>`
+    : open ? `<div class="st open">На площадке ${dur(j.started_at)} <span>· с ${when(j.started_at)}</span></div>`
+    : `<div class="st done">Выехала ${when(j.ended_at)} <span>· ${ready ? `ремонт ${dur(j.started_at, j.ready_at)}` : `стояла ${dur(j.started_at, j.ended_at)}`}</span></div>`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
   const b = [];
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
   if (isAdmin() && !j.pending) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
   if (isNew) b.push(`<span class="badge red">новое</span>`);
+  if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
-  return `<div class="card ${open ? "open" : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
+  return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
     <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span></div>
     ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}
@@ -533,6 +538,14 @@ function openJob(id) {
     <label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}>
     <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
     <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>`;
+  // ремонт закончен, машина ждёт не по нашей вине -- время готовности и причина (в таблицу -- примечанием)
+  const wr = j?.wait_reason || "", other = !!wr && !WAITS.includes(wr);
+  S.edit.wait = other ? "Другое" : wr;
+  const readySec = j ? `<label class="f">Готова к выезду — ждёт не по нашей вине</label>
+    <div class="chips" id="fWait">${[...WAITS, "Другое"].map((w) => `<button class="chip ${w === S.edit.wait ? "on" : ""}" data-act="wait" data-v="${w}" ${dis}>${w}</button>`).join("")}</div>
+    <input class="inp" id="fWaitOther" style="margin-top:8px" placeholder="Чего ждёт машина" value="${other ? esc(wr) : ""}" ${dis} ${S.edit.wait === "Другое" ? "" : "hidden"}>
+    <div class="timebox" style="margin-top:8px"><input class="inp" type="datetime-local" id="fReady" value="${toInput(j.ready_at)}" ${dis}>
+      <button class="btn" data-act="unready" ${dis}>Не ждёт</button></div>` : "";
   $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
       ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
     ${can ? "" : `<div class="warn">Запись другого механика — только просмотр.</div>`}
@@ -547,6 +560,7 @@ function openJob(id) {
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
     ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>сделано, м/ч, ТМЦ</small></summary>${more}</details>`}
+    ${readySec}
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input class="inp" type="datetime-local" id="fEnd" value="${toInput(j.ended_at)}" ${dis}>
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
@@ -583,10 +597,16 @@ function saveJob(exitNow) {
   // таблицы считают по минутам: выезд -- хотя бы на минуту позже заезда
   if (ended && Math.floor(new Date(ended) / 60000) <= Math.floor(new Date(started) / 60000)) return toast("Выезд должен быть позже заезда (хотя бы на минуту)", true);
   if (new Date(started) > new Date(Date.now() + 10 * 60000)) return toast("Время заезда в будущем — проверьте", true);
+  const ready = j ? fromInput($("#fReady").value) : null;
+  const wait = !ready ? "" : e.wait === "Другое" ? $("#fWaitOther").value.trim() : e.wait;
+  if (ready && !wait) return toast("Укажите, чего ждёт машина", true);
+  if (ready && new Date(ready) < new Date(started)) return toast("Готовность раньше заезда — проверьте время", true);
+  if (ready && ended && new Date(ended) < new Date(ready)) return toast("Выезд раньше готовности — проверьте время", true);
+  if (ready && new Date(ready) > new Date(Date.now() + 10 * 60000)) return toast("Время готовности в будущем — проверьте", true);
   const motoS = $("#fMoto").value.replace(",", ".").trim();
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
   const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: $("#fFault").value.trim(), work: $("#fWork").value.trim(),
-    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim() };
+    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait };
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
     if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
@@ -636,6 +656,11 @@ document.addEventListener("click", async (ev) => {
     case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "to": { $("#more")?.setAttribute("open", ""); const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
     case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); break;
+    case "wait": S.edit.wait = t.dataset.v; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.toggle("on", c === t));
+      $("#fWaitOther").hidden = S.edit.wait !== "Другое"; if (S.edit.wait === "Другое") $("#fWaitOther").focus();
+      if (!$("#fReady").value) $("#fReady").value = toInput(new Date().toISOString()); break;
+    case "unready": S.edit.wait = ""; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.remove("on"));
+      $("#fWaitOther").hidden = true; $("#fReady").value = ""; break;
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
     case "deljob": if (confirm("Удалить запись? У механика она тоже пропадёт.")) { const j = S.edit.j;
