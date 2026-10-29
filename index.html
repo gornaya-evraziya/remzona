@@ -348,8 +348,10 @@ async function sysNotify(title, body) {
   try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) reg.showNotification(title, { body, icon: "icon-192.png", tag: title, renotify: true });
     else new Notification(title, { body, icon: "icon-192.png" }); } catch {}
 }
+// «зеркало» из книги, созданное или обновлённое кнопкой «Из приложения» (rev = imported_rev) -- без звука и не «новое»
+const fromBook = (j) => j.client_id?.startsWith("xl:") && j.rev === j.imported_rev;
 function announce(row, prev) {
-  if (!S.me || row.mechanic_id === S.me.id) return;
+  if (!S.me || row.mechanic_id === S.me.id || fromBook(row)) return;
   const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : (!prev.ready_at && row.ready_at) ? "готова, ждёт: " + (row.wait_reason || "—").toLowerCase() : "дополнено";
   const msg = `${row.gar} — ${what}${row.mechanic_name ? " · " + row.mechanic_name : ""}`;
   toast(msg); beep(); navigator.vibrate?.([120, 60, 120]);
@@ -573,7 +575,7 @@ async function enter() {
 }
 
 // ---------- экраны ----------
-const newCount = () => allJobs().filter((j) => j.mechanic_id !== S.me?.id && new Date(j.updated_at).getTime() > S.seen).length;
+const newCount = () => allJobs().filter((j) => j.mechanic_id !== S.me?.id && !fromBook(j) && new Date(j.updated_at).getTime() > S.seen).length;
 function renderConn() {
   const c = $("#conn"); if (!c) return;
   const n = S.queue.length;
