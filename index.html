@@ -752,8 +752,10 @@ function openJob(id) {
   drawGars(); drawTo();
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
+  const ta = $("#fTmc"); fitTa(ta); ta.addEventListener("input", () => fitTa(ta));   // поле ТМЦ растёт по строкам
   if (!j) setTimeout(() => $("#fGar").focus(), 50);
 }
+function fitTa(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 2 + "px"; }   // +2 — рамка (border-box)
 function drawGars() {
   const e = S.edit, q = e.gar, busy = new Set(allJobs().filter((x) => !x.ended_at && x.id !== e.j?.id).map((x) => x.gar));
   const xs = S.machines.filter((m) => (m.active || m.gar === q) && (!q || m.gar.startsWith(q)));
@@ -966,6 +968,7 @@ document.addEventListener("click", async (ev) => {
     case "shift": pickShift(+t.dataset.v); break;
     case "tmc": { const r = PRICE.rows[+t.dataset.i], qty = Math.max(1, parseInt($("#fTmcN").value, 10) || 1), ta = $("#fTmc");
       ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + `${r.a} ${r.n} — ${qty} шт`;   // как окно ТМЦ книги
+      fitTa(ta);
       $("#fTmcQ").value = ""; $("#fTmcN").value = "1"; $("#tmcList").innerHTML = ""; break; }
     case "setsite": closeSheet(); if (t.dataset.v !== S.me.site) moveSite(t.dataset.v); break;
     case "delstaff": { const s = S.edit.staff;
