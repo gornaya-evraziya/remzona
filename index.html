@@ -67,10 +67,13 @@ h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: v
 h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 10px; padding: 0 8px; font-size: 13px; letter-spacing: 0; }
 h2 .n.red { background: var(--red); color: #fff; }
 .shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
-  justify-content: space-between; align-items: center; font-size: 15px; }
+  justify-content: space-between; align-items: center; font-size: 15px; flex-wrap: wrap; gap: 12px 8px; }
+.shift .sw { display: inline-flex; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; overflow: hidden; vertical-align: middle; margin: -4px 4px; }
+.shift .sw button { border: 0; background: none; color: inherit; font-size: 14px; font-weight: 600; min-height: 36px; padding: 0 12px; cursor: pointer; opacity: .75; }
+.shift .sw button.on { background: var(--on-graphite); color: var(--graphite); opacity: 1; }
 .shift small { opacity: .75; font-size: 15px; }
 .shift .site { border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.08); color: inherit; border-radius: 999px;
-  font-size: 14px; font-weight: 600; padding: 0 12px; min-height: 36px; margin: -6px -6px -6px 8px; cursor: pointer; white-space: nowrap; }
+  font-size: 14px; font-weight: 600; padding: 0 12px; min-height: 36px; margin: -6px -6px -6px auto; cursor: pointer; white-space: nowrap; }
 .shift .site::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 3px 8px;
   border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .7; }
 .seg.two { grid-template-columns: 1fr 1fr; }
@@ -158,6 +161,11 @@ textarea.inp { min-height: 74px; resize: vertical; }
 .seg button.on { background: var(--graphite); color: var(--on-graphite); }
 .seg button:disabled { opacity: .55; }
 .timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
+.tmcq { display: flex; gap: 8px; margin-top: 8px; } .tmcq #fTmcQ { flex: 1; min-width: 0; } .tmcq #fTmcN { flex: 0 0 64px; text-align: center; }
+.tmcres { display: grid; gap: 6px; margin-top: 8px; max-height: 320px; overflow-y: auto; }
+.tmcres button { text-align: left; border: 1px solid var(--line); background: var(--card); color: var(--strong); border-radius: 10px;
+  padding: 10px 12px; min-height: 44px; font-size: 15px; cursor: pointer; }
+.tmcres button:active { background: var(--press); }
 .warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-top: 8px; }
 details.more { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 0 12px; }
 details.more summary { list-style: none; display: flex; align-items: baseline; gap: 8px; min-height: 48px; padding: 13px 0; cursor: pointer; font-weight: 600; color: var(--strong); }
@@ -297,7 +305,19 @@ function shiftOf(t = new Date()) {
     const n = new Date(d); n.setHours(0, 0, 0, 0); return { date: n, n: 1, start: st }; }
   const st = new Date(d); st.setHours(DAY_START, 0, 0, 0); const n = new Date(d); n.setHours(0, 0, 0, 0); return { date: n, n: 2, start: st };
 }
-const shiftText = (s) => `${dm(s.date)}.${s.date.getFullYear()} · смена ${s.n} (${s.n === 1 ? "ночь" : "день"})`;
+// свою смену механик выбирает сам (30.10.2026, решение пользователя: на пересменке ночной видит свою) -- rz_shift = начало
+// выбранной; выбор действует от 4 ч до её начала до 4 ч после конца, дальше -- снова по часам. В книгу смена не идёт.
+const SHIFT_LEN = 12 * 3600000, SHIFT_SLACK = 4 * 3600000;
+function myShift(now = new Date()) {
+  const s = load("rz_shift", 0);
+  return s && now - s >= -SHIFT_SLACK && now - s <= SHIFT_LEN + SHIFT_SLACK ? shiftOf(new Date(s + 60000)) : shiftOf(now);
+}
+function pickShift(n) {
+  const now = new Date(), auto = shiftOf(now), st = auto.start.getTime();
+  // выбрана не та, что по часам, -- ближайшая из соседних: только что кончившаяся или следующая
+  save("rz_shift", n === auto.n ? 0 : now - st <= st + SHIFT_LEN - now ? st - SHIFT_LEN : st + SHIFT_LEN);
+  render();
+}
 const when = (iso) => { const d = new Date(iso); return d.toDateString() === new Date().toDateString() ? hm(d) : `${dm(d)} ${hm(d)}`; };
 
 // ---------- значки и тема ----------
@@ -571,7 +591,7 @@ async function enter() {
   if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт или заявка ещё не подтверждена — обратитесь к сервисному администратору"); }
   start(me);
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
-  subscribe(); render(); flush();
+  subscribe(); render(); flush(); loadPrice();
 }
 
 // ---------- экраны ----------
@@ -616,9 +636,10 @@ function installHint() {
 }
 function render() {
   if (!S.me) return;
-  const js = allJobs(), sh = shiftOf();
+  const js = allJobs(), sh = myShift();
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
-  const head = `<div class="shift"><span>${shiftText(sh)} <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
+  const sw = [1, 2].map((n) => `<button class="${sh.n === n ? "on" : ""}" data-act="shift" data-v="${n}">${n === 1 ? "Ночь" : "День"}</button>`).join("");
+  const head = `<div class="shift"><span>${dm(sh.date)} · смена ${sh.n} <span class="sw">${sw}</span> <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
@@ -693,6 +714,8 @@ function openJob(id) {
   const more = `<label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
     <label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}>
     <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
+    ${can ? `<div class="tmcq"><input class="inp" id="fTmcQ" placeholder="Найти в прайсе: артикул или слова" autocomplete="off">
+      <input class="inp" id="fTmcN" inputmode="numeric" value="1" aria-label="Количество, шт"></div><div id="tmcList"></div>` : ""}
     <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>`;
   // ремонт закончен, машина ждёт не по нашей вине -- время готовности и причина (в таблицу -- примечанием)
   const wr = j?.wait_reason || "", other = !!wr && !WAITS.includes(wr);
@@ -728,6 +751,7 @@ function openJob(id) {
   $("#sheet").hidden = false;
   drawGars(); drawTo();
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
+  $("#fTmcQ")?.addEventListener("input", drawTmc);
   if (!j) setTimeout(() => $("#fGar").focus(), 50);
 }
 function drawGars() {
@@ -742,6 +766,35 @@ function drawGars() {
 function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
     [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
+}
+// ---------- прайс ГЕ для ТМЦ (30.10.2026, решение пользователя): кэш в телефоне, сверка раз в 3 суток ----------
+let PRICE = null;
+const norm = (s) => s.toLowerCase().replace(/ё/g, "е");
+function priceRows(text) {
+  // ключ поиска: артикулы и наименование + артикулы без пробелов/дефисов/точек/косых
+  return text ? text.split("\n").map((l) => { const [a, b, n] = l.split("\t");
+    return { a, n, k: norm(`${a} ${b} ${n} ${(a + b).replace(/[\s\-./]/g, "")}`) }; }) : [];
+}
+async function loadPrice() {
+  if (!PRICE) { const c = load("rz_price", null); if (c) PRICE = { got: c.got, rows: priceRows(c.text) }; }
+  if (!S.me || !navigator.onLine || (PRICE && Date.now() - PRICE.got < 3 * 86400000)) return;
+  try {
+    const { data, error } = await sb.rpc("tmc_list");
+    if (error) throw error;
+    PRICE = { got: Date.now(), rows: priceRows(data.data) }; save("rz_price", { got: PRICE.got, text: data.data });
+  } catch {}
+}
+function drawTmc() {
+  const q = norm($("#fTmcQ").value.trim()), box = $("#tmcList");
+  if (q.length < 2) { box.innerHTML = ""; return; }
+  if (!PRICE?.rows.length) {
+    box.innerHTML = `<div class="warn">${navigator.onLine ? "Прайс загружается…" : "Прайс ещё не загружен — нужна связь. Впишите вручную."}</div>`;
+    return void loadPrice().then(() => { if (PRICE?.rows.length && $("#fTmcQ")) drawTmc(); });
+  }
+  const ws = q.split(/\s+/), hits = [];
+  PRICE.rows.some((r, i) => { if (ws.every((w) => r.k.includes(w))) hits.push(i); return hits.length >= 30; });
+  box.innerHTML = hits.length ? `<div class="tmcres">${hits.map((i) => `<button data-act="tmc" data-i="${i}"><b>${esc(PRICE.rows[i].a)}</b> ${esc(PRICE.rows[i].n)}</button>`).join("")}</div>`
+    : `<div class="warn">В прайсе не найдено — впишите вручную.</div>`;
 }
 function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
 function saveJob(exitNow) {
@@ -910,6 +963,10 @@ document.addEventListener("click", async (ev) => {
     case "sesite": S.edit.site = t.dataset.v; document.querySelectorAll("#seSite .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "ssite": L.site = t.dataset.v; document.querySelectorAll("#sSite button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "site": openSite(); break;
+    case "shift": pickShift(+t.dataset.v); break;
+    case "tmc": { const r = PRICE.rows[+t.dataset.i], qty = Math.max(1, parseInt($("#fTmcN").value, 10) || 1), ta = $("#fTmc");
+      ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + `${r.a} ${r.n} — ${qty} шт`;   // как окно ТМЦ книги
+      $("#fTmcQ").value = ""; $("#fTmcN").value = "1"; $("#tmcList").innerHTML = ""; break; }
     case "setsite": closeSheet(); if (t.dataset.v !== S.me.site) moveSite(t.dataset.v); break;
     case "delstaff": { const s = S.edit.staff;
       if (!confirm(`Удалить «${s.name}» насовсем? Войти он больше не сможет, восстановить нельзя.`)) return;
@@ -935,7 +992,7 @@ document.addEventListener("keydown", (e) => {
 $("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
-async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} }
+async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} loadPrice(); }
 window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
 window.addEventListener("offline", renderConn);
 // новая версия сайта скачана в фоне (sw.js) -- применяется, когда приложение снова открыли и форма не открыта
