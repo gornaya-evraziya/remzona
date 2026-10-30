@@ -33,6 +33,12 @@ self.addEventListener("fetch", (e) => {
     return net.catch(() => c.match("./index.html"));
   }));
 });
+// Web Push от сервера (функция push): показать, даже когда приложение закрыто; одна запись -- одно уведомление (tag)
+self.addEventListener("push", (e) => {
+  let d = {}; try { d = e.data.json(); } catch {}
+  e.waitUntil(self.registration.showNotification(d.title || "Ремзона ГЕ",
+    { body: d.body || "", icon: "icon-192.png", tag: d.tag || undefined, renotify: !!d.tag }));
+});
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: "window" }).then((cs) => cs.length ? cs[0].focus() : self.clients.openWindow("./")));

@@ -368,6 +368,28 @@ async function sysNotify(title, body) {
   try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) reg.showNotification(title, { body, icon: "icon-192.png", tag: title, renotify: true });
     else new Notification(title, { body, icon: "icon-192.png" }); } catch {}
 }
+// Web Push: уведомления администратору, даже когда приложение закрыто (сервер: push_subs, триггер jobs_push, функция push);
+// на iPhone -- только в приложении с экрана «Домой»
+const VAPID = "BCnrYgG_l7StA7ezoCEIUq5hJGUfa7rsoRQy-fYoOe0JCKWZ7wj-JcoTPGw-F2Ah6IaoQWVLxDf0BbcL2rQOuYU";
+const pushOk = () => "PushManager" in window && "Notification" in window && "serviceWorker" in navigator;
+async function pushOn(ask) {
+  if (!isAdmin() || !pushOk()) return;
+  if (ask && Notification.permission === "default") await Notification.requestPermission();
+  if (Notification.permission !== "granted") return;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true,
+    applicationServerKey: Uint8Array.from(atob(VAPID.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)) });
+  const k = sub.toJSON().keys;
+  const { error } = await sb.rpc("push_save", { p_endpoint: sub.endpoint, p_p256dh: k.p256dh, p_auth: k.auth });
+  if (error) throw error;
+  S.push = true;
+}
+async function pushOff() {   // выход: этот телефон больше не получает уведомления
+  if (!S.push) return;
+  try { const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (sub) { await sb.rpc("push_drop", { p_endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch {}
+  S.push = false;
+}
 // «зеркало» из книги, созданное или обновлённое кнопкой «Из приложения» (rev = imported_rev) -- без звука и не «новое»
 const fromBook = (j) => j.client_id?.startsWith("xl:") && j.rev === j.imported_rev;
 function announce(row, prev) {
@@ -375,7 +397,8 @@ function announce(row, prev) {
   const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : (!prev.ready_at && row.ready_at) ? "готова, ждёт: " + (row.wait_reason || "—").toLowerCase() : "дополнено";
   const msg = `${row.gar} — ${what}${row.mechanic_name ? " · " + row.mechanic_name : ""}`;
   toast(msg); beep(); navigator.vibrate?.([120, 60, 120]);
-  if (document.hidden) sysNotify("Ремзона: " + msg, [row.kind, row.fault || row.work].filter(Boolean).join(" · "));
+  // с Web Push уведомление при свёрнутом приложении покажет sw.js
+  if (document.hidden && !S.push) sysNotify("Ремзона: " + msg, [row.kind, row.fault || row.work].filter(Boolean).join(" · "));
   document.title = `(${newCount()}) Ремзона ГЕ`;
 }
 
@@ -592,6 +615,7 @@ async function enter() {
   start(me);
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
   subscribe(); render(); flush(); loadPrice();
+  pushOn(false).then(render, () => {});
 }
 
 // ---------- экраны ----------
@@ -631,7 +655,7 @@ function installHint() {
   if (load("rz_hint_off", false) || matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "";
   const ios = /iphone|ipad/i.test(navigator.userAgent);
   return `<div class="hint"><span class="grow">📲 Добавьте приложение на экран телефона: ${ios ? "кнопка «Поделиться» → «На экран „Домой“»" :
-    "меню браузера ⋮ → «Добавить на главный экран»"}.</span>${deferredInstall ? `<button class="btn small dark" data-act="install">Установить</button>` : ""}
+    "меню браузера ⋮ → «Добавить на главный экран»"}.${ios && isAdmin() ? " Уведомления о заездах на iPhone приходят только в установленное приложение." : ""}</span>${deferredInstall ? `<button class="btn small dark" data-act="install">Установить</button>` : ""}
     <button class="btn small" data-act="hintoff">✕</button></div>`;
 }
 function render() {
@@ -659,7 +683,8 @@ function render() {
       h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
         ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
-        ${"Notification" in window && Notification.permission === "default" ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
+        ${"Notification" in window && (pushOk() ? !S.push && Notification.permission !== "denied" : Notification.permission === "default")
+          ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
         ${S.me.site === EXCEL_SITE ? `<span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span>` : ""}</div>
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
@@ -912,7 +937,7 @@ document.addEventListener("click", async (ev) => {
       toast(r.error || (a === "approve" ? `${s.name}: доступ открыт` : `Заявка «${s.name}» отклонена`), !!r.error); reloadStaff(); break; }
     case "crew": S.edit.crew = +t.dataset.v; document.querySelectorAll("#fCrew button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
-      if (S.channel) sb.removeChannel(S.channel); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
+      if (S.channel) sb.removeChannel(S.channel); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
     case "theme": save("rz_theme", isDark() ? "light" : "dark"); applyTheme(); break;
     case "new": openJob(null); break;
@@ -932,7 +957,10 @@ document.addEventListener("click", async (ev) => {
     case "deljob": if (confirm("Удалить запись? У механика она тоже пропадёт.")) { const j = S.edit.j;
       enqueue(j.client_id || null, { deleted: true }, false, j.id.startsWith("q:") ? null : j.id); closeSheet(); } break;
     case "seen": S.seen = Date.now(); save("rz_seen", S.seen); document.title = "Ремзона ГЕ"; render(); break;
-    case "notif": await Notification.requestPermission(); render(); break;
+    case "notif": if (pushOk()) await pushOn(true).catch((e) => toast("Уведомления: " + (e.message || e), true));
+      else await Notification.requestPermission();
+      if (Notification.permission === "denied") toast("Уведомления запрещены в настройках телефона", true);
+      render(); break;
     case "install": if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; render(); } break;
     case "hintoff": save("rz_hint_off", true); render(); break;
     case "role": document.querySelectorAll("#nsRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
