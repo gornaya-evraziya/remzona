@@ -225,6 +225,19 @@ details.more label.f:first-of-type { margin-top: 0; }
 .hint { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 14px; margin-top: 12px;
   display: flex; gap: 8px; align-items: center; }
 .hint .grow { flex: 1; }
+/* фото к записи: лента миниатюр с кнопкой «Фото», просмотр на весь экран */
+.photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 6px; padding-bottom: 2px; }
+.photos img, .photos .add { flex: 0 0 76px; width: 76px; height: 76px; border-radius: 10px; object-fit: cover; background: var(--chip); border: 1px solid var(--line); }
+.photos .add { position: relative; display: grid; place-items: center; align-content: center; gap: 2px; font-size: 13px; color: var(--strong); cursor: pointer; text-align: center; }
+.photos .add b { font-size: 24px; line-height: 1; }
+.photos .add input { position: absolute; inset: 0; opacity: 0; width: 100%; }
+.pnote { font-size: 13px; color: var(--muted); margin-top: 8px; }
+#pview { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.94); display: grid; place-items: center; }
+#pview[hidden] { display: none; }
+#pview img { max-width: 100vw; max-height: 84vh; object-fit: contain; }
+#pview .bar { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 10px; color: #ccc; font-size: 13px; }
+.online { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 5px; }
 </style>
 </head>
 <body>
@@ -237,6 +250,7 @@ details.more label.f:first-of-type { margin-top: 0; }
 <div id="splash" aria-hidden="true"><div class="sp"><img class="logo" src="logo.png" alt=""><div class="bar"><i></i></div><div class="t">Ремзона</div></div></div>
 <main id="app"></main>
 <div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<div id="pview" hidden></div>
 <nav id="nav" hidden></nav>
 <div id="toast"></div>
 
@@ -268,6 +282,7 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 const S = {
   me: null, machines: load("rz_machines", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
   queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: null,
+  photos: new Map(), purl: new Map(), purlAt: 0, upl: "", pres: null, online: new Set(),   // фото по записям; кто сейчас в приложении
 };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -296,6 +311,13 @@ function dur(a, b) {
   let m = Math.max(0, Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 60000));
   const d = Math.floor(m / 1440); m -= d * 1440; const h = Math.floor(m / 60); m -= h * 60;
   return d ? `${d} д ${h} ч` : h ? `${h} ч ${m} мин` : `${m} мин`;
+}
+// администратору: сейчас в приложении (Presence) или когда был (staff.last_seen)
+function seenTxt(s) {
+  if (S.online.has(s.id)) return `<span class="dot"></span>в приложении`;
+  if (!s.last_seen) return "не заходил";
+  const m = (Date.now() - new Date(s.last_seen)) / 60000;
+  return m < 3 ? "был только что" : m < 720 ? `был ${dur(s.last_seen)} назад` : `был ${when(s.last_seen)}`;
 }
 function shiftOf(t = new Date()) {
   const d = new Date(t); const h = d.getHours();
@@ -462,12 +484,14 @@ const cacheJobs = () => save("rz_jobs", [...S.jobs.values()]);
 // ---------- данные ----------
 async function loadAll() {
   const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
-  const [m, j, st, inv] = await Promise.all([
+  const [m, j, st, inv, ph] = await Promise.all([
     sb.from("machines").select("*").order("gar"),
     sb.from("jobs").select("*").eq("deleted", false).or(`ended_at.is.null,updated_at.gte.${since}`).order("started_at", { ascending: false }).limit(500),
     isAdmin() ? sb.from("staff").select("*").order("role", { ascending: false }).order("name") : Promise.resolve({ data: [] }),
     isAdmin() ? sb.from("invite").select("code").maybeSingle() : Promise.resolve({ data: null }),
+    sb.from("photos").select("id,job_id,path,staff_id,created_at").not("job_id", "is", null).order("created_at"),
   ]);
+  if (!ph.error) { S.photos = new Map(); ph.data.forEach(addPhoto); }
   S.invite = inv.data?.code || "";
   if (m.error || j.error) throw (m.error || j.error);
   S.machines = m.data; save("rz_machines", S.machines);
@@ -484,7 +508,17 @@ function subscribe() {
       if (!row.deleted && (!prev || prev.rev !== row.rev)) announce(row, prev);
     }
     cacheJobs(); render();
+  }).on("postgres_changes", { event: "*", schema: "public", table: "photos" }, (p) => {
+    if (p.eventType === "DELETE") dropPhoto(p.old?.id); else if (p.new.job_id) addPhoto(p.new);
+    render(); drawPhotos();
   }).subscribe((status) => { S.rt = status; renderConn(); });
+  // кто сейчас в приложении (Realtime Presence): в канале участка только id сотрудника, имена -- из списка у администратора
+  if (S.pres) sb.removeChannel(S.pres);
+  const pres = S.pres = sb.channel("online-" + S.me.site, { config: { presence: { key: S.me.id } } })
+    .on("presence", { event: "sync" }, () => {
+      S.online = new Set(Object.keys(pres.presenceState()));
+      if (isAdmin() && !document.activeElement?.matches("input, textarea")) render();
+    }).subscribe((st) => { if (st === "SUBSCRIBED") pres.track({}); });
 }
 
 // ---------- вход ----------
@@ -614,7 +648,7 @@ async function enter() {
   if (!me || !me.active) { await sb.auth.signOut(); return showLogin("Доступ закрыт или заявка ещё не подтверждена — обратитесь к сервисному администратору"); }
   start(me);
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
-  subscribe(); render(); flush(); loadPrice();
+  subscribe(); render(); flush(); loadPrice(); markSeen();
   pushOn(false).then(render, () => {});
 }
 
@@ -644,6 +678,7 @@ function card(j, opts = {}) {
   if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
+  if (S.photos.get(j.id)?.length) b.push(`<span class="badge">📷 ${S.photos.get(j.id).length}</span>`);
   return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
     <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span>${j.crew ? `<span class="crew" title="Человек на работе">${svg(ICON.people)}${j.crew}</span>` : ""}</div>
@@ -686,6 +721,8 @@ function render() {
         ${"Notification" in window && (pushOk() ? !S.push && Notification.permission !== "denied" : Notification.permission === "default")
           ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
         ${S.me.site === EXCEL_SITE ? `<span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span>` : ""}</div>
+        ${(() => { const on = S.staff.filter((s) => s.id !== S.me.id && S.online.has(s.id));
+          return on.length ? `<div class="online"><span class="dot"></span>В приложении: ${on.map((s) => esc(s.name)).join(", ")}</div>` : ""; })()}
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
       h += `${head}<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
@@ -696,7 +733,7 @@ function render() {
       const here = (s) => (s.site || EXCEL_SITE) === S.me.site, others = S.staff.filter((s) => !s.pending && !here(s));
       const reqs = S.staff.filter((s) => s.pending && here(s));
       const row = (s) => `<div class="${s.active ? "" : "off"}">
-          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${here(s) ? "" : " · " + esc(s.site)}${s.active ? "" : " · отключён"}</small></span>
+          <span class="grow"><b>${esc(s.name)}</b><br><small style="color:var(--muted)">${s.role === "admin" ? "администратор" : "механик"}${s.owner ? " · владелец" : ""}${here(s) ? "" : " · " + esc(s.site)}${s.active ? ` · ${seenTxt(s)}` : " · отключён"}</small></span>
           ${own ? `<button class="btn small" data-act="staff" data-id="${s.id}">Изменить</button>` : `
           ${mine(s) ? `<button class="btn small" data-act="pin" data-id="${s.id}">PIN</button>` : ""}
           ${s.id !== S.me.id && mine(s) ? `<button class="btn small" data-act="active" data-id="${s.id}" data-on="${s.active ? 0 : 1}">${s.active ? "Отключить" : "Включить"}</button>` : ""}`}</div>`;
@@ -753,6 +790,8 @@ function openJob(id) {
   $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
       ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
     ${can ? "" : `<div class="warn">Запись другого участка — только просмотр.</div>`}
+    ${!j ? "" : j.id.startsWith("q:") ? `<div class="pnote">📷 Фото — когда запись отправится на сервер</div>`
+      : `<label class="f">Фото</label><div class="photos" id="fPhotos"></div>`}
     <label class="f">Гаражный номер</label>
     <input class="inp" id="fGar" inputmode="numeric" placeholder="Начните вводить номер" value="${esc(S.edit.gar)}" ${dis} autocomplete="off">
     <div class="gars" id="garGrid"></div><div id="garWarn"></div>
@@ -765,6 +804,7 @@ function openJob(id) {
     <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
+    ${j ? "" : `<div class="pnote">📷 Фото можно добавить сразу после «Отметить заезд» — откройте запись</div>`}
     ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>сделано, м/ч, ТМЦ</small></summary>${more}</details>`}
     ${readySec}
     ${j ? `<label class="f">Время выезда</label>
@@ -778,6 +818,7 @@ function openJob(id) {
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
   const ta = $("#fTmc"); fitTa(ta); ta.addEventListener("input", () => fitTa(ta));   // поле ТМЦ растёт по строкам
+  drawPhotos();
   if (!j) setTimeout(() => $("#fGar").focus(), 50);
 }
 function fitTa(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 2 + "px"; }   // +2 — рамка (border-box)
@@ -822,6 +863,71 @@ function drawTmc() {
   PRICE.rows.some((r, i) => { if (ws.every((w) => r.k.includes(w))) hits.push(i); return hits.length >= 30; });
   box.innerHTML = hits.length ? `<div class="tmcres">${hits.map((i) => `<button data-act="tmc" data-i="${i}"><b>${esc(PRICE.rows[i].a)}</b> ${esc(PRICE.rows[i].n)}</button>`).join("")}</div>`
     : `<div class="warn">В прайсе не найдено — впишите вручную.</div>`;
+}
+// ---------- фото к записи: сжатие на телефоне, хранилище photos/<запись>/<uuid>.jpg, на ПК их забирает tools\get_photos.py ----------
+function addPhoto(p) { const a = S.photos.get(p.job_id) || []; if (!a.some((x) => x.id === p.id)) { a.push(p); S.photos.set(p.job_id, a); } }
+function dropPhoto(id) { for (const [k, a] of S.photos) { const b = a.filter((x) => x.id !== id); if (b.length) S.photos.set(k, b); else S.photos.delete(k); } }
+const findPhoto = (id) => [...S.photos.values()].flat().find((x) => x.id === id);
+function drawPhotos() {
+  const box = $("#fPhotos"), j = S.edit?.j; if (!box || !j) return;
+  const ps = S.photos.get(j.id) || [];
+  box.innerHTML = (S.edit.can ? `<label class="add"><b>📷</b>${S.upl ? esc(S.upl) : "Добавить"}
+      <input type="file" accept="image/*" multiple ${S.upl ? "disabled" : ""}></label>` : "")
+    + ps.map((p) => `<img data-act="photo" data-id="${p.id}" src="${S.purl.get(p.path) || ""}" alt="Фото">`).join("")
+    + (!S.edit.can && !ps.length ? `<span class="pnote">Нет фото</span>` : "");
+  box.querySelector("input")?.addEventListener("change", (e) => addPhotos([...e.target.files]));
+  photoUrls(ps);
+}
+async function photoUrls(ps) {   // ссылки на просмотр -- на 6 ч, обновляются через 5 ч
+  if (Date.now() - S.purlAt > 5 * 3600000) { S.purl.clear(); S.purlAt = Date.now(); }
+  const need = ps.map((p) => p.path).filter((x) => !S.purl.has(x));
+  if (!need.length || !navigator.onLine) return;
+  need.forEach((x) => S.purl.set(x, ""));
+  const { data } = await sb.storage.from("photos").createSignedUrls(need, 6 * 3600);
+  (data || []).forEach((x) => x.signedUrl && S.purl.set(x.path, x.signedUrl));
+  if (data?.some((x) => x.signedUrl)) drawPhotos();
+}
+async function shrink(file) {   // до 1600 px, JPEG 0.8: ~200–400 КБ вместо 3–5 МБ; поворот по EXIF делает браузер
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((ok, bad) => { img.onload = ok; img.onerror = () => bad(new Error("не удалось открыть снимок")); img.src = url; });
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error("не удалось сжать"))), "image/jpeg", 0.8));
+  } finally { URL.revokeObjectURL(url); }
+}
+async function addPhotos(files) {
+  const j = S.edit?.j; if (!j || !files.length) return;
+  if (!navigator.onLine) return toast("Нет связи — фото не отправлено. Добавьте, когда появится связь", true);
+  let ok = 0;
+  for (const [i, f] of files.entries()) {
+    S.upl = files.length > 1 ? `${i + 1} из ${files.length}` : "Отправка…"; drawPhotos();
+    try {
+      const blob = await shrink(f), path = `${j.id}/${uuid()}.jpg`;
+      const up = await sb.storage.from("photos").upload(path, blob, { contentType: "image/jpeg" });
+      if (up.error) throw up.error;
+      const { data, error } = await sb.rpc("photo_add", { p_job: j.id, p_path: path });
+      if (error) { sb.storage.from("photos").remove([path]); throw error; }
+      S.purl.set(path, URL.createObjectURL(blob)); addPhoto(data); ok++;
+    } catch (e) { toast("Фото не отправлено: " + (netErr(e) ? "нет связи" : e.message || e), true); break; }
+  }
+  S.upl = ""; drawPhotos(); render();
+  if (ok) toast(ok === 1 ? "Фото отправлено" : `Фото отправлено: ${ok}`);
+}
+function viewPhoto(p) {
+  const v = $("#pview"), mine = p.staff_id === S.me.id || isAdmin();
+  v.innerHTML = `<img src="${S.purl.get(p.path) || ""}" alt="Фото" data-act="pclose"><div class="bar"><span>${when(p.created_at)}</span>
+    ${mine ? `<button class="btn small" data-act="pdel" data-id="${p.id}">Удалить</button>` : ""}<button class="btn small dark" data-act="pclose">Закрыть</button></div>`;
+  v.hidden = false;
+}
+async function delPhoto(id) {
+  const p = findPhoto(id); if (!p || !confirm("Удалить фото? Если оно уже на ПК, там копия останется.")) return;
+  const rm = await sb.storage.from("photos").remove([p.path]);
+  const { error } = rm.error ? rm : await sb.rpc("photo_del", { p_id: id });
+  if (error) return toast("Не удалось удалить: " + (netErr(error) ? "нет связи" : error.message), true);
+  dropPhoto(id); $("#pview").hidden = true; drawPhotos(); render();
 }
 function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
 function saveJob(exitNow) {
@@ -937,12 +1043,15 @@ document.addEventListener("click", async (ev) => {
       toast(r.error || (a === "approve" ? `${s.name}: доступ открыт` : `Заявка «${s.name}» отклонена`), !!r.error); reloadStaff(); break; }
     case "crew": S.edit.crew = +t.dataset.v; document.querySelectorAll("#fCrew button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
-      if (S.channel) sb.removeChannel(S.channel); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
+      if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
     case "theme": save("rz_theme", isDark() ? "light" : "dark"); applyTheme(); break;
     case "new": openJob(null); break;
     case "job": openJob(t.dataset.id); break;
     case "close": closeSheet(); break;
+    case "photo": { const p = findPhoto(t.dataset.id); if (p) viewPhoto(p); break; }
+    case "pclose": $("#pview").hidden = true; break;
+    case "pdel": delPhoto(t.dataset.id); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
     case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "to": { $("#more")?.setAttribute("open", ""); const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
@@ -1018,12 +1127,16 @@ document.addEventListener("click", async (ev) => {
 document.addEventListener("keydown", (e) => {
   if (!S.me && L.pick && /^\d$/.test(e.key) && L.pin.length < 4) { L.pin += e.key; renderLogin(); if (L.pin.length === 4) tryPin(); }
   if (e.key === "Enter" && e.target.id === "lName") findName();
+  if (e.key === "Escape" && !$("#pview").hidden) return void ($("#pview").hidden = true);
   if (e.key === "Escape" && !$("#sheet").hidden) closeSheet();
 });
 $("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+$("#pview").addEventListener("click", (e) => { if (e.target.id === "pview") e.target.hidden = true; });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
-async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} loadPrice(); }
+async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} loadPrice(); markSeen(); }
+// «был в приложении N мин назад» у администратора: при входе и каждом обновлении (раз в 2 мин, пока приложение на экране)
+function markSeen() { if (S.me && !document.hidden) sb.rpc("seen").then(() => {}, () => {}); }
 window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
 window.addEventListener("offline", renderConn);
 // новая версия сайта скачана в фоне (sw.js) -- применяется, когда приложение снова открыли и форма не открыта
