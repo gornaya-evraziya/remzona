@@ -17,7 +17,7 @@
   color-scheme: light;
   --red: #C30013; --red-soft: #FBEAEC; --graphite: #3F3F3F; --on-graphite: #FFFFFF; --strong: #2B2B2B;
   --bg: #F2F2F2; --card: #FFFFFF; --line: #DADADA; --line2: #EEEEEE; --text: #222; --muted: #6B6B6B;
-  --chip: #EDEDED; --press: #E6E6E6; --disabled: #EFEFEF; --scrim: rgba(0,0,0,.35); --shadow: 0 1px 3px rgba(0,0,0,.07);
+  --chip: #EDEDED; --press: #E6E6E6; --disabled: #EFEFEF; --scrim: rgba(0,0,0,.35); --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.05);
   --green: #2E7D32; --green-soft: #E6F2E7; --amber: #B26A00; --amber-soft: #FFF3DC;
   --logo-bg: transparent; --logo-pad: 0;
 }
@@ -42,7 +42,8 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.35 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { padding-bottom: env(safe-area-inset-bottom); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { touch-action: manipulation; }
@@ -62,10 +63,11 @@ header .who b { display: block; font-size: 14px; white-space: nowrap; overflow: 
   cursor: pointer; color: var(--strong); flex: none; padding: 0; font-size: 20px; }
 .iconbtn:active { background: var(--press); }
 main { max-width: 720px; margin: 0 auto; padding: 12px 16px 120px; }
-h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 22px 0 10px;
-  display: flex; align-items: center; gap: 8px; }
-h2 .n { background: var(--graphite); color: var(--on-graphite); border-radius: 10px; padding: 0 8px; font-size: 13px; letter-spacing: 0; }
-h2 .n.red { background: var(--red); color: #fff; }
+/* дизайн «А · список карточек» (30.10.2026, выбор пользователя): крупные заголовки, номер машины -- главный акцент */
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--strong); margin: 26px 0 12px;
+  display: flex; align-items: baseline; gap: 8px; }
+h2 .n { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+h2 .n.red { align-self: center; background: var(--red); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; }
 .shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
   justify-content: space-between; align-items: center; font-size: 15px; flex-wrap: wrap; gap: 12px 8px; }
 .shift .sw { display: inline-flex; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; overflow: hidden; vertical-align: middle; margin: -4px 4px; }
@@ -87,26 +89,34 @@ h2 .n.red { background: var(--red); color: #fff; }
   min-height: 58px; padding: 14px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(195,0,19,.25); }
 .big:active { transform: scale(.99); filter: brightness(.95); }
 /* карточка машины */
-.card { background: var(--card); border: 1px solid var(--line); border-left-width: 6px; border-radius: 14px; padding: 12px 12px 12px 6px;
-  margin-bottom: 10px; display: flex; gap: 10px; cursor: pointer; box-shadow: var(--shadow); }
-.card:active { background: var(--press); }
+.card { background: var(--card); border: 1px solid var(--line); border-left-width: 4px; border-radius: 16px; padding: 14px 14px 14px 8px;
+  margin-bottom: 10px; display: flex; gap: 12px; cursor: pointer; box-shadow: var(--shadow); transition: transform .12s ease, background .12s; }
+.card:active { background: var(--press); transform: scale(.99); }
 .card.open { border-left-color: var(--red); }
 .card.closed { border-left-color: var(--green); }
 .card.ready { border-left-color: var(--amber); }
 .card.new { box-shadow: 0 0 0 2px var(--red); }
-.card .gar { flex: none; width: 74px; align-self: center; text-align: center; font-size: 30px; font-weight: 800; line-height: 1.05;
-  color: var(--strong); letter-spacing: -.01em; }
-.card .gar small { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.card .gar { flex: none; width: 76px; align-self: center; text-align: center; font-size: 32px; font-weight: 750; line-height: 1;
+  color: var(--strong); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.card .gar small { display: block; margin-top: 6px; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
 .card .body { flex: 1; min-width: 0; }
 .card .top { display: flex; gap: 8px; align-items: baseline; }
-.card .kind { font-weight: 700; color: var(--strong); flex: none; }
-.card .mech { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .crew { margin-left: auto; flex: none; display: flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--muted); }
-.card .crew svg { width: 16px; height: 16px; }
-.card .st { font-size: 15px; font-weight: 600; margin-top: 3px; }
-.card .st.open { color: var(--red); } .card .st.done { color: var(--green); } .card .st.wait { color: var(--amber); }
-.card .st span { font-size: 14px; font-weight: 400; color: var(--muted); }
-.card .txt { font-size: 14px; margin-top: 5px; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.card .kind { font-size: 16px; font-weight: 700; color: var(--strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* время: на площадке (красный) / ждёт (жёлтый) / сколько стояла (серый) -- цифры одной ширины, не прыгают */
+.card .tm { margin-left: auto; flex: none; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--red); }
+.card.ready .tm { color: var(--amber); } .card.closed .tm { color: var(--muted); font-size: 15px; font-weight: 600; }
+.card .st { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.card .txt { font-size: 14px; margin-top: 6px; color: var(--text); white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.card .meta span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.card .meta svg.i { width: 15px; height: 15px; flex: none; }
+/* «Заезд машины» у механика -- внизу, под большим пальцем */
+.fab { position: fixed; z-index: 6; left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom)); max-width: 688px; margin: 0 auto;
+  border: 0; border-radius: 16px; background: var(--red); color: #fff; min-height: 58px; font-size: 18px; font-weight: 650; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 20px rgba(195,0,19,.32); }
+.fab svg.i { width: 22px; height: 22px; stroke-width: 2.4; }
+.fab:active { transform: scale(.98); filter: brightness(.95); }
+main:has(.fab) ~ #toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
 .badge { font-size: 12px; border-radius: 6px; padding: 2px 8px; background: var(--chip); color: var(--muted); }
 .badge.red { background: var(--red-soft); color: var(--red); } .badge.green { background: var(--green-soft); color: var(--green); }
@@ -137,6 +147,11 @@ h2 .n.red { background: var(--red); color: #fff; }
 /* форма */
 #sheet { position: fixed; inset: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
 #sheet[hidden] { display: none; }
+#sheet:not([hidden]) { animation: fade .18s ease; }
+#sheet:not([hidden]) .panel { animation: sheetUp .24s cubic-bezier(.2,.8,.2,1); }
+@keyframes fade { from { background: transparent; } }
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { #sheet:not([hidden]), #sheet:not([hidden]) .panel { animation: none; } }
 .panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 100%; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 0 16px; }
 .panel .head { position: sticky; top: 0; background: var(--bg); padding: 12px 0 8px; display: flex; align-items: center; gap: 8px; z-index: 2; }
 .panel .head b { font-size: 19px; color: var(--strong); }
@@ -167,7 +182,6 @@ textarea.inp { min-height: 74px; resize: vertical; }
 .wk .chip.on::after { content: " ✕"; opacity: .7; }
 .wk .chip small { color: var(--muted); font-size: 12px; }
 .wkl { display: block; margin-top: 4px; padding: 8px 0; text-align: left; font-size: 14px; color: var(--strong); text-decoration: underline; }
-.card .wkc { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .tmcres { display: grid; gap: 6px; margin-top: 8px; max-height: 320px; overflow-y: auto; }
 .tmcres button { text-align: left; border: 1px solid var(--line); background: var(--card); color: var(--strong); border-radius: 10px;
   padding: 10px 12px; min-height: 44px; font-size: 15px; cursor: pointer; }
@@ -318,6 +332,12 @@ function dur(a, b) {
   const d = Math.floor(m / 1440); m -= d * 1440; const h = Math.floor(m / 60); m -= h * 60;
   return d ? `${d} д ${h} ч` : h ? `${h} ч ${m} мин` : `${m} мин`;
 }
+// время на карточке: «2:35», больше суток -- «1 д 3 ч»
+function clock(a, b) {
+  let m = Math.max(0, Math.floor(((b ? new Date(b) : new Date()) - new Date(a)) / 60000));
+  const d = Math.floor(m / 1440); m -= d * 1440; const h = Math.floor(m / 60); m -= h * 60;
+  return d ? `${d} д ${h} ч` : `${h}:${pad2(m)}`;
+}
 // администратору: сейчас в приложении (Presence) или когда был (staff.last_seen)
 function seenTxt(s) {
   if (S.online.has(s.id)) return `<span class="dot"></span>в приложении`;
@@ -357,6 +377,8 @@ const ICON = {
   feed: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
   people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
+  cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
 };
 const svg = (p) => `<svg class="i" viewBox="0 0 24 24">${p}</svg>`;
@@ -675,11 +697,15 @@ function card(j, opts = {}) {
   const open = !j.ended_at;
   const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
   const ready = !!j.ready_at, why = esc((j.wait_reason || "").toLowerCase());
-  const st = open && ready ? `<div class="st wait">Готова, ждёт ${dur(j.ready_at)}${why ? ` — ${why}` : ""} <span>· ремонт ${dur(j.started_at, j.ready_at)}</span></div>`
-    : open ? `<div class="st open">На площадке ${dur(j.started_at)} <span>· с ${when(j.started_at)}</span></div>`
-    : `<div class="st done">Выехала ${when(j.ended_at)} <span>· ${ready ? `ремонт ${dur(j.started_at, j.ready_at)}` : `стояла ${dur(j.started_at, j.ended_at)}`}</span></div>`;
+  // справа -- время: на площадке / ждёт / сколько стояла; под видом работ -- статус и механик
+  const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(j.ready_at)}">${clock(j.ready_at)}</span>`
+    : open ? `<span class="tm" title="На площадке ${dur(j.started_at)}">${clock(j.started_at)}</span>`
+    : `<span class="tm" title="Стояла ${dur(j.started_at, j.ended_at)}">${clock(j.started_at, j.ended_at)}</span>`;
+  const st = open && ready ? `Готова, ждёт${why ? ` — ${why}` : ""} · ремонт ${dur(j.started_at, j.ready_at)}`
+    : open ? `На площадке с ${when(j.started_at)}` : `Выехала ${when(j.ended_at)}`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
-  const crew = j.workers?.length || j.crew;
+  const crew = j.workers?.length ? esc(j.workers.join(", ")) : j.crew ? `${j.crew} чел.` : "", nPh = S.photos.get(j.id)?.length || 0;
+  const meta = [crew && `<span title="Кто работает">${svg(ICON.people)}${crew}</span>`, nPh && `<span title="Фото">${svg(ICON.cam)}${nPh}</span>`].filter(Boolean);
   const b = [];
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
   if (isAdmin() && !j.pending && j.site === EXCEL_SITE) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
@@ -687,11 +713,11 @@ function card(j, opts = {}) {
   if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
-  if (S.photos.get(j.id)?.length) b.push(`<span class="badge">📷 ${S.photos.get(j.id).length}</span>`);
   return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
-    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span>${crew ? `<span class="crew" title="Человек на работе">${svg(ICON.people)}${crew}</span>` : ""}</div>
-    ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}${j.workers?.length ? `<div class="wkc">${esc(j.workers.join(", "))}</div>` : ""}
+    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span>${tm}</div>
+    <div class="st">${st} · ${esc(j.mechanic_name || "—")}</div>
+    ${txt ? `<div class="txt">${esc(txt)}</div>` : ""}${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
     ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
 const list = (xs, opts, empty) => (xs.length ? xs.map((j) => card(j, opts)).join("") : `<div class="empty">${empty}</div>`);
@@ -714,7 +740,7 @@ function render() {
     // выезды смены -- все по участку: ремонт могли начать и закрыть разные механики
     const mine = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start)
       .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
-    h = `${head}<button class="big" data-act="new">＋ Заезд машины</button>${installHint()}
+    h = `${head}<button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button>${installHint()}
       <h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}
       <h2>Выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
   } else {
