@@ -162,6 +162,12 @@ textarea.inp { min-height: 74px; resize: vertical; }
 .seg button:disabled { opacity: .55; }
 .timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
 .tmcq { display: flex; gap: 8px; margin-top: 8px; } .tmcq #fTmcQ { flex: 1; min-width: 0; } .tmcq #fTmcN { flex: 0 0 64px; text-align: center; }
+.wk { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.wk .chip { min-height: 40px; padding: 8px 12px; }
+.wk .chip.on::after { content: " ✕"; opacity: .7; }
+.wk .chip small { color: var(--muted); font-size: 12px; }
+.wkl { display: block; margin-top: 4px; padding: 8px 0; text-align: left; font-size: 14px; color: var(--strong); text-decoration: underline; }
+.card .wkc { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .tmcres { display: grid; gap: 6px; margin-top: 8px; max-height: 320px; overflow-y: auto; }
 .tmcres button { text-align: left; border: 1px solid var(--line); background: var(--card); color: var(--strong); border-radius: 10px;
   padding: 10px 12px; min-height: 44px; font-size: 15px; cursor: pointer; }
@@ -280,7 +286,7 @@ const pinPassword = (pin, login) => `ge-${pin}-${login}`;
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const S = {
-  me: null, machines: load("rz_machines", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
+  me: null, machines: load("rz_machines", []), workers: load("rz_workers", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
   queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: null,
   photos: new Map(), purl: new Map(), purlAt: 0, upl: "", pres: null, online: new Set(),   // фото по записям; кто сейчас в приложении
 };
@@ -484,14 +490,16 @@ const cacheJobs = () => save("rz_jobs", [...S.jobs.values()]);
 // ---------- данные ----------
 async function loadAll() {
   const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
-  const [m, j, st, inv, ph] = await Promise.all([
+  const [m, j, st, inv, ph, wk] = await Promise.all([
     sb.from("machines").select("*").order("gar"),
     sb.from("jobs").select("*").eq("deleted", false).or(`ended_at.is.null,updated_at.gte.${since}`).order("started_at", { ascending: false }).limit(500),
     isAdmin() ? sb.from("staff").select("*").order("role", { ascending: false }).order("name") : Promise.resolve({ data: [] }),
     isAdmin() ? sb.from("invite").select("code").maybeSingle() : Promise.resolve({ data: null }),
     sb.from("photos").select("id,job_id,path,staff_id,created_at").not("job_id", "is", null).order("created_at"),
+    sb.from("workers").select("id,name,grp,active").order("name"),
   ]);
   if (!ph.error) { S.photos = new Map(); ph.data.forEach(addPhoto); }
+  if (!wk.error) { S.workers = wk.data; save("rz_workers", S.workers); }
   S.invite = inv.data?.code || "";
   if (m.error || j.error) throw (m.error || j.error);
   S.machines = m.data; save("rz_machines", S.machines);
@@ -671,6 +679,7 @@ function card(j, opts = {}) {
     : open ? `<div class="st open">На площадке ${dur(j.started_at)} <span>· с ${when(j.started_at)}</span></div>`
     : `<div class="st done">Выехала ${when(j.ended_at)} <span>· ${ready ? `ремонт ${dur(j.started_at, j.ready_at)}` : `стояла ${dur(j.started_at, j.ended_at)}`}</span></div>`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
+  const crew = j.workers?.length || j.crew;
   const b = [];
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
   if (isAdmin() && !j.pending && j.site === EXCEL_SITE) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
@@ -681,8 +690,8 @@ function card(j, opts = {}) {
   if (S.photos.get(j.id)?.length) b.push(`<span class="badge">📷 ${S.photos.get(j.id).length}</span>`);
   return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
-    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span>${j.crew ? `<span class="crew" title="Человек на работе">${svg(ICON.people)}${j.crew}</span>` : ""}</div>
-    ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}
+    <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span><span class="mech">${esc(j.mechanic_name || "—")}</span>${crew ? `<span class="crew" title="Человек на работе">${svg(ICON.people)}${crew}</span>` : ""}</div>
+    ${st}${txt ? `<div class="txt">${esc(txt)}</div>` : ""}${j.workers?.length ? `<div class="wkc">${esc(j.workers.join(", "))}</div>` : ""}
     ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
 const list = (xs, opts, empty) => (xs.length ? xs.map((j) => card(j, opts)).join("") : `<div class="empty">${empty}</div>`);
@@ -751,7 +760,13 @@ function render() {
         <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="nsName" placeholder="Метелкин А.В.">
         <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button>${own ? `<button class="chip" data-act="role" data-v="admin">Администратор</button>` : ""}</div>
         <label class="f">PIN — 4 цифры (сообщите сотруднику)</label><div class="timebox"><input class="inp" id="nsPin" inputmode="numeric" maxlength="4"><button class="btn" data-act="genpin">Случайный</button></div>
-        <div class="actions"><button class="btn red" data-act="addstaff">Добавить</button></div>`;
+        <div class="actions"><button class="btn red" data-act="addstaff">Добавить</button></div>
+        <h2>Исполнители работ <span class="n">${S.workers.filter((w) => w.active).length}</span></h2>
+        <div style="font-size:13px;color:var(--muted)">Слесари, сварщики и др. — механики отмечают их в записи (для тех. отчёта). Входить в приложение им не нужно. Список общий для участков.</div>
+        <input class="inp" id="nwQ" style="margin-top:8px" placeholder="Найти: фамилия (пусто — скрытые)" autocomplete="off"><div class="list" id="wkAdm" style="margin-top:8px"></div>
+        <label class="f">Добавить исполнителя — Фамилия И.О.</label>
+        <div class="timebox"><input class="inp" id="nwName" placeholder="Иванов И.И."><select class="inp" id="nwGrp" style="flex:0 0 120px">${["слесарь", "сварщик", "механик", "инженер"].map((g) => `<option>${g}</option>`).join("")}</select></div>
+        <div class="actions"><button class="btn red" data-act="wkadd">Добавить</button></div>`;
     } else if (S.tab === "cars") {
       const act = S.machines.filter((m) => m.active), off = S.machines.filter((m) => !m.active);
       const grid = (xs) => `<div class="gars">${xs.map((m) => `<button data-act="car" data-gar="${esc(m.gar)}" title="${esc(m.model)}">${esc(m.gar)}</button>`).join("")}</div>`;
@@ -762,7 +777,16 @@ function render() {
     }
   }
   $("#app").innerHTML = h;
+  if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
   renderConn(); hideSplash();
+}
+// «Люди» → исполнители: поиск (и скрытые), скрыть уволенного / вернуть -- в выборе у механиков скрытых нет
+function drawWkAdmin() {
+  const q = norm($("#nwQ").value.trim());
+  const xs = q.length >= 2 ? S.workers.filter((w) => norm(w.name).includes(q)).slice(0, 30) : S.workers.filter((w) => !w.active);
+  $("#wkAdm").innerHTML = xs.map((w) => `<div class="${w.active ? "" : "off"}"><span class="grow"><b>${esc(w.name)}</b><br><small style="color:var(--muted)">${esc(w.grp)}${w.active ? "" : " · скрыт"}</small></span>
+    <button class="btn small" data-act="wkact" data-id="${w.id}">${w.active ? "Скрыть" : "Вернуть"}</button></div>`).join("")
+    || `<div><small style="color:var(--muted)">${q.length >= 2 ? "Не найдено" : "Скрытых нет"}</small></div>`;
 }
 
 // ---------- карточка заезда ----------
@@ -770,7 +794,7 @@ function openJob(id) {
   const j = id ? allJobs().find((x) => x.id === id) : null;
   // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
   const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
-  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", crew: j?.crew || 1 };
+  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", workers: [...(j?.workers || [])] };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
@@ -798,8 +822,8 @@ function openJob(id) {
     <label class="f">Вид работ</label>
     <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <div class="chips" id="toChips" style="margin-top:6px"></div>
-    <label class="f">Сколько человек работает</label>
-    <div class="seg" id="fCrew">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="${n === S.edit.crew ? "on" : ""}" data-act="crew" data-v="${n}" ${dis}>${n}</button>`).join("")}</div>
+    <label class="f" id="wkHead"></label><div id="wkBox"></div>
+    ${can ? `<input class="inp" id="fWkQ" style="margin-top:8px" placeholder="Найти исполнителя: фамилия" autocomplete="off"><div id="wkFound"></div>` : ""}
     <label class="f">Время заезда</label>
     <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
@@ -814,7 +838,8 @@ function openJob(id) {
     ${can ? `<div class="actions bar">${j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
-  drawGars(); drawTo();
+  drawGars(); drawTo(); drawWorkers();
+  $("#fWkQ")?.addEventListener("input", drawWkFound);
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
   const ta = $("#fTmc"); fitTa(ta); ta.addEventListener("input", () => fitTa(ta));   // поле ТМЦ растёт по строкам
@@ -834,6 +859,34 @@ function drawGars() {
 function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
     [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
+}
+// ---------- исполнители (30.10.2026, решение пользователя): фамилии -- для тех. отчёта, в книгу -- только их число ----------
+// сверху -- отмеченные и недавние на этом телефоне (одно касание), ниже поиск по справочнику workers
+function drawWorkers() {
+  const e = S.edit, sel = e.workers, old = !sel.length && e.j?.crew;
+  $("#wkHead").textContent = `Кто работает${sel.length ? ` · ${sel.length} чел.` : old ? ` · указано ${e.j.crew} чел. без фамилий` : ""}`;
+  if (!e.can) return void ($("#wkBox").innerHTML = sel.length ? `<div class="pnote" style="margin-top:0">${esc(sel.join(", "))}</div>` : "");
+  const chip = (n, on) => `<button class="chip ${on ? "on" : ""}" data-act="wk" data-n="${esc(n)}">${esc(n)}</button>`;
+  const last = load("rz_wk_last", []), recent = load("rz_wk_recent", []).filter((n) => !sel.includes(n)).slice(0, 10);
+  const same = last.length && last.every((n) => sel.includes(n));
+  $("#wkBox").innerHTML = `<div class="wk">${sel.map((n) => chip(n, true)).join("")}${recent.map((n) => chip(n, false)).join("")}</div>
+    ${last.length && !same ? `<button class="link wkl" data-act="wklast">Как в прошлый раз: ${esc(last.join(", "))}</button>` : ""}
+    ${!sel.length && !recent.length ? `<div class="pnote">Найдите фамилию — потом она будет здесь, одним касанием</div>` : ""}`;
+}
+function drawWkFound() {
+  const raw = $("#fWkQ").value.trim(), q = norm(raw), box = $("#wkFound");
+  if (q.length < 2) return void (box.innerHTML = "");
+  const act = S.workers.filter((w) => w.active && !S.edit.workers.includes(w.name));
+  const hits = [...act.filter((w) => norm(w.name).startsWith(q)), ...act.filter((w) => !norm(w.name).startsWith(q) && norm(w.name).includes(q))].slice(0, 12);
+  const typed = fio(raw), known = typed && S.workers.some((w) => norm(w.name) === norm(typed));
+  box.innerHTML = `<div class="wk">${hits.map((w) => `<button class="chip" data-act="wk" data-n="${esc(w.name)}">${esc(w.name)}${w.grp === "слесарь" ? "" : ` <small>${esc(w.grp)}</small>`}</button>`).join("")}
+    ${typed && !known && !S.edit.workers.includes(typed) ? `<button class="chip" data-act="wk" data-n="${esc(typed)}">＋ ${esc(typed)} <small>нет в списке</small></button>` : ""}</div>
+    ${!hits.length && !typed ? `<div class="pnote">Не найдено. Чтобы вписать нового — Фамилия И.О.</div>` : ""}`;
+}
+function rememberWorkers(xs) {   // недавние -- первыми, до 15; «как в прошлый раз» -- последний сохранённый состав
+  if (!xs.length) return;
+  save("rz_wk_last", xs);
+  save("rz_wk_recent", [...xs, ...load("rz_wk_recent", []).filter((n) => !xs.includes(n))].slice(0, 15));
 }
 // ---------- прайс ГЕ для ТМЦ (30.10.2026, решение пользователя): кэш в телефоне, сверка раз в 3 суток ----------
 let PRICE = null;
@@ -952,7 +1005,9 @@ function saveJob(exitNow) {
   // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
   const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: cap($("#fWork").value),
-    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait, crew: e.crew };
+    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
+    workers: [...e.workers], crew: e.workers.length ? Math.min(e.workers.length, 20) : (j?.crew ?? null) };
+  rememberWorkers(e.workers);
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
     if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
@@ -1041,7 +1096,21 @@ document.addEventListener("click", async (ev) => {
       if (a === "reject" && !confirm(`Отклонить заявку «${s.name}»?`)) return;
       t.disabled = true; const r = await callAdmin({ action: a, id: s.id }); t.disabled = false;
       toast(r.error || (a === "approve" ? `${s.name}: доступ открыт` : `Заявка «${s.name}» отклонена`), !!r.error); reloadStaff(); break; }
-    case "crew": S.edit.crew = +t.dataset.v; document.querySelectorAll("#fCrew button").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "wk": { const n = t.dataset.n, xs = S.edit.workers, i = xs.indexOf(n);
+      if (i >= 0) xs.splice(i, 1); else xs.push(n);
+      if ($("#fWkQ").value) { $("#fWkQ").value = ""; drawWkFound(); }
+      drawWorkers(); break; }
+    case "wklast": load("rz_wk_last", []).forEach((n) => { if (!S.edit.workers.includes(n)) S.edit.workers.push(n); }); drawWorkers(); break;
+    case "wkadd": { const name = fio($("#nwName").value), grp = $("#nwGrp").value;
+      if (!name) return toast(FIO_ERR, true);
+      const r = await sb.from("workers").upsert({ name, grp, active: true }, { onConflict: "name" }).select().single();
+      if (r.error) return toast(r.error.message, true);
+      S.workers = [...S.workers.filter((w) => w.name !== name), r.data].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+      save("rz_workers", S.workers); toast(`${name} — в списке исполнителей`); render(); break; }
+    case "wkact": { const w = S.workers.find((x) => x.id === t.dataset.id);
+      const r = await sb.from("workers").update({ active: !w.active }).eq("id", w.id);
+      if (r.error) return toast(r.error.message, true);
+      w.active = !w.active; save("rz_workers", S.workers); drawWkAdmin(); break; }
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
       if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
