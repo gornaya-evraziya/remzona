@@ -259,6 +259,26 @@ details.more label.f:first-of-type { margin-top: 0; }
 #pview .bar { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 10px; color: #ccc; font-size: 13px; }
 .online { font-size: 13px; color: var(--muted); margin-top: 10px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 5px; }
+/* выполненные работы -- как таблица тех. отчёта: описание, начало/окончание, ФИО */
+.sec { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 0; }
+details.more .sec:first-of-type { margin-top: 0; }
+.sec h3 { margin: 0; font-size: 17px; color: var(--strong); }
+.sec .rows { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sec .rows.full { color: var(--amber); font-weight: 600; }
+.work { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--graphite); border-radius: 14px; padding: 4px 12px 12px; margin-top: 10px; }
+.work .wh { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.work .wh b { font-size: 15px; color: var(--strong); }
+.work .wh .iconbtn { margin-left: auto; width: 40px; height: 40px; font-size: 18px; color: var(--muted); }
+.work label.f { margin-top: 10px; }
+.work textarea.inp { min-height: 52px; }
+.tmw { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tmw .cell { display: grid; gap: 6px; min-width: 0; }
+.tmw .cap { font-size: 12px; color: var(--muted); }
+.tmw input { text-align: center; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; min-height: 52px; }
+.tmw .btn { min-height: 42px; font-size: 14px; padding: 8px 6px; }
+.tot { margin-top: 8px; font-size: 14px; color: var(--muted); }
+.tot b { color: var(--strong); font-variant-numeric: tabular-nums; }
+.addw { width: 100%; margin-top: 10px; border: 1px dashed var(--line); background: none; min-height: 50px; border-radius: 14px; font-size: 16px; color: var(--strong); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -822,10 +842,11 @@ function openJob(id) {
   const j = id ? allJobs().find((x) => x.id === id) : null;
   // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
   const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
-  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", workers: [...(j?.workers || [])] };
+  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", steps: stepsOf(j) };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
-  const more = `<label class="f">Что сделано</label><textarea class="inp" id="fWork" ${dis}>${esc(j?.work)}</textarea>
+  const more = `<div class="sec"><h3>Выполнены работы</h3><span class="rows" id="stRows"></span></div><div id="steps"></div>
+    ${can ? `<button class="addw" data-act="stadd">＋ Ещё работа</button>` : ""}<div id="stWarn"></div>
     <label class="f">Моточасы</label><input class="inp" id="fMoto" inputmode="decimal" value="${esc(j?.moto ?? "")}" ${dis}>
     <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
     ${can ? `<div class="tmcq"><input class="inp" id="fTmcQ" placeholder="Найти в прайсе: артикул или слова" autocomplete="off">
@@ -850,14 +871,12 @@ function openJob(id) {
     <label class="f">Вид работ</label>
     <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <div class="chips" id="toChips" style="margin-top:6px"></div>
-    <label class="f" id="wkHead"></label><div id="wkBox"></div>
-    ${can ? `<input class="inp" id="fWkQ" style="margin-top:8px" placeholder="Найти исполнителя: фамилия" autocomplete="off"><div id="wkFound"></div>` : ""}
     <label class="f">Время заезда</label>
     <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
     ${j ? "" : `<div class="pnote">📷 Фото можно добавить сразу после «Отметить заезд» — откройте запись</div>`}
-    ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>сделано, м/ч, ТМЦ</small></summary>${more}</details>`}
+    ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>работы, м/ч, ТМЦ</small></summary>${more}</details>`}
     ${readySec}
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input class="inp" type="datetime-local" id="fEnd" value="${toInput(j.ended_at)}" ${dis}>
@@ -866,11 +885,17 @@ function openJob(id) {
     ${can ? `<div class="actions bar">${j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
-  drawGars(); drawTo(); drawWorkers();
-  $("#fWkQ")?.addEventListener("input", drawWkFound);
+  drawGars(); drawTo(); drawSteps();
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
   const ta = $("#fTmc"); fitTa(ta); ta.addEventListener("input", () => fitTa(ta));   // поле ТМЦ растёт по строкам
+  $("#steps").addEventListener("input", (ev) => {   // поля работ: описание, время, поиск работы / исполнителя
+    const el = ev.target, f = el.dataset.sf, i = +el.closest(".work")?.dataset.i; if (!f) return;
+    if (f === "q") return drawStSug(i);
+    if (f === "wq") return drawStWho(i);
+    S.edit.steps[i][f] = el.value;
+    if (f === "t") fitTa(el); else drawStTot(i);
+  });
   drawPhotos();
   if (!j) setTimeout(() => $("#fGar").focus(), 50);
 }
@@ -888,28 +913,86 @@ function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
     [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
 }
-// ---------- исполнители (30.10.2026, решение пользователя): фамилии -- для тех. отчёта, в книгу -- только их число ----------
-// сверху -- отмеченные и недавние на этом телефоне (одно касание), ниже поиск по справочнику workers
-function drawWorkers() {
-  const e = S.edit, sel = e.workers, old = !sel.length && e.j?.crew;
-  $("#wkHead").textContent = `Кто работает${sel.length ? ` · ${sel.length} чел.` : old ? ` · указано ${e.j.crew} чел. без фамилий` : ""}`;
-  if (!e.can) return void ($("#wkBox").innerHTML = sel.length ? `<div class="pnote" style="margin-top:0">${esc(sel.join(", "))}</div>` : "");
-  const chip = (n, on) => `<button class="chip ${on ? "on" : ""}" data-act="wk" data-n="${esc(n)}">${esc(n)}</button>`;
-  const last = load("rz_wk_last", []), recent = load("rz_wk_recent", []).filter((n) => !sel.includes(n)).slice(0, 10);
-  const same = last.length && last.every((n) => sel.includes(n));
-  $("#wkBox").innerHTML = `<div class="wk">${sel.map((n) => chip(n, true)).join("")}${recent.map((n) => chip(n, false)).join("")}</div>
-    ${last.length && !same ? `<button class="link wkl" data-act="wklast">Как в прошлый раз: ${esc(last.join(", "))}</button>` : ""}
-    ${!sel.length && !recent.length ? `<div class="pnote">Найдите фамилию — потом она будет здесь, одним касанием</div>` : ""}`;
+// ---------- выполненные работы (31.10.2026, решение пользователя): как таблица «Выполнены работы» тех. отчёта ----------
+// работа = описание + начало/окончание (ЧЧ:ММ, одно на всю бригаду) + ФИО; в бланке строка на человека: всего 10, на работу до 5.
+// jobs.steps -- для тех. отчёта; work (описания построчно), workers, crew собираются из них -- книга ввода не меняется.
+// Старая запись без steps -- одна работа из work/workers без времени.
+const ST_ROWS = 10, ST_CREW = 5;
+// = Шаблоны\_служебное\База\общая\Работы.txt (список «Описание работ» тех. отчёта); обновить -- python tools\works_list.py
+const WORKS = /*WORKS*/["Диагностика гидравлической системы", "Диагностика электрооборудования", "Диагностика с помощью сканера", "Выезд в карьер. Диагностика неисправности", "Перегон самосвала на ремонтную площадку", "Пробный выезд", "Замена масляных фильтров ДВС", "Замена топливных фильтров", "Замена фильтров системы охлаждения", "Доливка масла", "Доливка охлаждающей жидкости", "Заправка системы кондиционирования", "Замена РВД", "Замена уплотнения", "Замена приводного ремня", "Замена предохранителя", "Замена реле", "Замена датчика", "Замена щёток стеклоочистителя", "Протяжка резьбовых соединений", "Протяжка РВД", "Удаление залома болта. Установка нового болта", "Сварочные работы", "Демонтаж", "Монтаж", "Ремонт электропроводки", "Чистка контактов разъёмов", "Настройка параметров системы АЦСС", "Развоздушивание топливной системы", "Сброс давления гидравлической системы", "Переуплотнение соединения", "Проверка на утечку", "Натяжка продольных тяг", "Подкачка шин", "Уборка рабочего места", "Слив ОЖ", "Устранение заломов болтов соединения холодной и горячей частей ТКР", "Диагностика АЦСС", "Закачка ОЖ", "Обвязка топливного бака", "Диагностика", "Диагностика электропроводки", "Диагностика ДВС", "Ремонт трапеции привода стеклоочистителя", "Замена сальника вала привода зарядного генератора", "Ремонт крепления трапеции к эл.мотору привода стеклоочистителя", "Регулировка трапеции привода стеклоочистителя", "Диагностика эл.проводки", "Продолжение диагностики эл.проводки", "Подготовка к монтажу", "Монтаж водяного насоса", "Удаление заломов с ПЛ ТКР", "Монтаж выпускных коллекторов", "Замена уплотнения на трубке слива масла с ПЛ ТКР", "Ремонт фишки датчика скорости переднего правого колеса (демонтаж косы, пайка контактов, монтаж косы)", "Очистка фишек CAN-шины", "Подготовка к удалению заломов (демонтаж выпускных коллекторов)", "Удаление заломов выпускного коллектора 12 цилиндра", "Подготовка к ремонту", "Устранение заломов с ЗП ТКР", "Монтаж ТКР", "Запуск, осмотр на наличие утечек", "Очистка пинов плат управления", "Выезд специалиста в карьер для диагностики АС в процессе эксплуатации", "Произвели замену РВД", "Зарядка АКБ", "Подготовка к монтажу ГБЦ 12 цилиндра", "Монтаж ГБЦ 12 цилиндра", "Выезд в карьер", "Монтаж выпускного коллектора", "Диагностика термостатов", "Запуск ДВС", "Диагностика продольных тяг", "Отказ", "Протяжка уголка масляного клапана", "Ремонт клавиши включения эл.мотора", "Ремонт хомута", "Ремонт эл.мотора привода стеклоочистителя", "Диагностика ДВС с подключением ПК", "Переуплотнение и протяжка резьбовых соединений манометров давления", "Подготовка к усилению крепления топливного бака", "Демонтаж крепления топливного бака", "Подготовка к модернизации", "Модернизация крепления топливного бака", "Продолжение модернизации крепления топливного бака", "Подготовка к сварке крепления противотуманной фары", "Подключение АС, запуск, осмотр на наличие утечек", "Монтаж модернизированного крепления топливного бака", "Сварочные работы козырька грузовой платформы", "Замена пыльников рулевых гидроцилиндров", "Демонтаж ЗП ТКР", "Диагностика стеклоочистителя", "Удаление заломов с ЗП ТКР", "Монтаж ЗП ТКР", "Ремонт клавиши сиденья оператора", "Замена сальника насоса подъема", "Демонтаж сальника", "Демонтаж топливных трубок", "Замена уплотнений", "Монтаж топливных трубок", "Демонтаж форсунки", "Демонтаж крышки клапанов", "Монтаж форсунки", "Протяжка топливного бака", "Диагностика бортового монитора", "Замена топливной форсунки", "Демонтаж топливной форсунки", "Замена термостатов", "Демонтаж ГБЦ 3 цилиндра", "Демонтаж РВД", "Монтаж РВД", "Модернизация плиты крепления насосов", "Продолжение закачки ОЖ", "Осмотр ДВС", "Демонтаж масляных фильтров", "Диагностика эл.мотора привода жалюзи", "Замена фильтра сепаратора", "Замена фильтра сепаратора и фильтра тормозной линии", "Демонтаж датчика", "Очистка датчика", "Монтаж датчика", "Диагностика топливной системы", "Чистка коллектора УВТР", "Чистка датчика скорости", "Диагностика рулевой колонки", "Демонтаж рулевой колонки", "Демонтаж рулевого колеса", "Монтаж рулевой колонки", "Ремонт эл.проводки подрулевого переключателя", "Зарядка АКБ, отогрев ДВС", "Осмотр рулевой колонки", "Диагностик неисправности", "Ремонт фишки датчика скорости", "Подвязка эл.проводки датчика скорости", "Монтаж пальца", "Установка плашки крепления пальца", "Протяжка болтов крепления топливного бака", "Демонтаж горячей части ТКР", "Продолжение перестановки теплообменника", "Демонтаж рулевого насоса", "Осмотр стыка насосов", "Монтаж рулевого насоса", "Пусконаладочные работы", "Удаление заломов с ПЛ и ПП ТКР", "Замена противотуманной фары", "Замена уплотнений сливных трубок задних ТКР", "Подключение теплообменника", "Диагностика неисправности", "Диагностика эл.мотора", "Перестановка эл.мотора", "Продолжение диагностики АЦСС", "Монтаж масляных фильтров", "Подготовка к аварийной разгрузке", "Аварийная разгрузка АС", "Протяжка уголка", "Осмотр соединения ТГ и ДВС", "Дефектовка усилителя", "Спуск воздуха с АЦСС", "Ремонт насоса АЦСС", "Демонтаж водяного насоса", "Зачистка посадочного места", "Демонтаж защиты ремня привода зарядного генератора", "Демонтаж шкива", "Замена РВД смазки", "Очистка контактов фишки", "Укладка кабеля УСПВЛ", "Проверка УСПВЛ", "Демонтаж ТНВД", "Перекомплектовка ТНВД", "Монтаж ТНВД", "Обвязка ТНВД", "Диагностика GE", "Осмотр оптоволокна", "Демонтаж хомута", "Очистка контактов фишки датчика давления масла в топливном насосе"]/*/WORKS*/;
+const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+const isHm = (s) => /^\d\d:\d\d$/.test(s || "");
+function stepsOf(j) {
+  if (Array.isArray(j?.steps) && j.steps.length) return j.steps.map((w) => ({ t: w.t || "", from: w.from || "", to: w.to || "", who: [...(w.who || [])] }));
+  return [{ t: j?.work || "", from: "", to: "", who: [...(j?.workers || [])] }];
 }
-function drawWkFound() {
-  const raw = $("#fWkQ").value.trim(), q = norm(raw), box = $("#wkFound");
-  if (q.length < 2) return void (box.innerHTML = "");
-  const act = S.workers.filter((w) => w.active && !S.edit.workers.includes(w.name));
-  const hits = [...act.filter((w) => norm(w.name).startsWith(q)), ...act.filter((w) => !norm(w.name).startsWith(q) && norm(w.name).includes(q))].slice(0, 12);
-  const typed = fio(raw), known = typed && S.workers.some((w) => norm(w.name) === norm(typed));
-  box.innerHTML = `<div class="wk">${hits.map((w) => `<button class="chip" data-act="wk" data-n="${esc(w.name)}">${esc(w.name)}${w.grp === "слесарь" ? "" : ` <small>${esc(w.grp)}</small>`}</button>`).join("")}
-    ${typed && !known && !S.edit.workers.includes(typed) ? `<button class="chip" data-act="wk" data-n="${esc(typed)}">＋ ${esc(typed)} <small>нет в списке</small></button>` : ""}</div>
-    ${!hits.length && !typed ? `<div class="pnote">Не найдено. Чтобы вписать нового — Фамилия И.О.</div>` : ""}`;
+function stDur(a, b) {
+  if (!isHm(a) || !isHm(b)) return "";
+  const m = (t) => +t.slice(0, 2) * 60 + +t.slice(3), d = (m(b) - m(a) + 1440) % 1440;   // как «Итого» в бланке: MOD(окончание - начало; 1)
+  return d >= 60 ? `${Math.floor(d / 60)} ч ${String(d % 60).padStart(2, "0")} мин` : `${d} мин`;
+}
+const stRows = () => S.edit.steps.reduce((s, w) => s + Math.max(1, w.who.length), 0);
+function drawSteps() {
+  const e = S.edit, box = $("#steps"); if (!box) return;
+  if (!e.can) {
+    box.innerHTML = e.steps.filter((w) => w.t || w.who.length).map((w) => `<div class="work"><div class="wh"><b>${esc(w.t || "—")}</b></div>
+      <div class="pnote" style="margin-top:0">${w.from || w.to ? `${w.from || "…"} – ${w.to || "…"}${stDur(w.from, w.to) ? " · " + stDur(w.from, w.to) : ""} · ` : ""}${esc(w.who.join(", ") || "без фамилий")}</div></div>`).join("")
+      || `<div class="pnote">Нет</div>`;
+    return drawStRows();
+  }
+  box.innerHTML = e.steps.map((w, i) => `<div class="work" data-i="${i}">
+      <div class="wh"><b>Работа ${i + 1}</b>${e.steps.length > 1 ? `<button class="iconbtn" data-act="stdel" title="Убрать работу">✕</button>` : ""}</div>
+      <label class="f">Описание работ</label>
+      <textarea class="inp" data-sf="t" placeholder="Что сделали">${esc(w.t)}</textarea>
+      <input class="inp" data-sf="q" style="margin-top:6px" placeholder="Найти в списке тех. отчёта: слова" autocomplete="off"><div class="sug"></div>
+      <label class="f">Время воздействия</label>
+      <div class="tmw">
+        <div class="cell"><span class="cap">Начало работ</span><input class="inp" type="time" data-sf="from" value="${w.from}"><button class="btn" data-act="stfrom">Начали сейчас</button></div>
+        <div class="cell"><span class="cap">Окончание работ</span><input class="inp" type="time" data-sf="to" value="${w.to}"><button class="btn" data-act="stto">Закончили сейчас</button></div>
+      </div>
+      <div class="tot"></div>
+      <div class="who"></div>
+      <input class="inp" data-sf="wq" style="margin-top:8px" placeholder="Найти исполнителя: фамилия" autocomplete="off">
+    </div>`).join("");
+  e.steps.forEach((w, i) => { drawStTot(i); drawStWho(i); });
+  box.querySelectorAll("textarea").forEach((ta) => fitTa(ta));
+  drawStRows();
+}
+const stBox = (i) => $(`#steps .work[data-i="${i}"]`);
+function drawStRows() {
+  const u = stRows(), el = $("#stRows");
+  el.textContent = `строк в тех. отчёте: ${u} из ${ST_ROWS}`; el.classList.toggle("full", u > ST_ROWS);
+  const w = $("#stWarn"); if (w) w.innerHTML = u > ST_ROWS && S.edit.can ? `<div class="warn">В тех. отчёте ${ST_ROWS} строк работ — лишнее не поместится. Объедините работы или уберите людей.</div>` : "";
+}
+function drawStTot(i) {
+  const w = S.edit.steps[i], d = stDur(w.from, w.to);
+  stBox(i).querySelector(".tot").innerHTML = d ? `Итого: <b>${d}</b>`
+    : i === 0 && !w.from && !w.to ? "Время не указано — в тех. отчёт пойдёт заезд и готовность (выезд)" : "Итого: —";
+}
+// ФИО: отмеченные, недавние на этом телефоне (одно касание), поиск по справочнику workers; новый -- «＋ Фамилия И.О.» только в запись
+function drawStWho(i) {
+  const e = S.edit, w = e.steps[i], box = stBox(i), raw = box.querySelector('[data-sf="wq"]').value.trim(), q = norm(raw);
+  const chip = (n, on, sub = "") => `<button class="chip ${on ? "on" : ""}" data-act="wk" data-n="${esc(n)}">${on || !sub ? esc(n) : sub}</button>`;
+  let more = "";
+  if (q.length >= 2) {
+    const act = S.workers.filter((x) => x.active && !w.who.includes(x.name));
+    const hits = [...act.filter((x) => norm(x.name).startsWith(q)), ...act.filter((x) => !norm(x.name).startsWith(q) && norm(x.name).includes(q))].slice(0, 12);
+    const typed = fio(raw), known = typed && S.workers.some((x) => norm(x.name) === norm(typed));
+    more = hits.map((x) => chip(x.name, false, `${esc(x.name)}${x.grp === "слесарь" ? "" : ` <small>${esc(x.grp)}</small>`}`)).join("")
+      + (typed && !known && !w.who.includes(typed) ? chip(typed, false, `＋ ${esc(typed)} <small>нет в списке</small>`) : "")
+      + (!hits.length && !typed ? `<div class="pnote">Не найдено. Чтобы вписать нового — Фамилия И.О.</div>` : "");
+  } else more = load("rz_wk_recent", []).filter((n) => !w.who.includes(n)).slice(0, 8).map((n) => chip(n, false)).join("");
+  const prev = i ? e.steps[i - 1].who : load("rz_wk_last", []), old = !i && !w.who.length && e.j?.crew;
+  const same = !prev.length || prev.every((n) => w.who.includes(n));
+  box.querySelector(".who").innerHTML = `<label class="f">ФИО специалиста${w.who.length ? ` · ${w.who.length} чел.` : old ? ` · указано ${e.j.crew} чел. без фамилий` : ""}</label>
+    <div class="wk">${w.who.map((n) => chip(n, true)).join("")}${more}</div>
+    ${same ? "" : `<button class="link wkl" data-act="stsame">${i ? `Те же, что в работе ${i}` : "Как в прошлый раз"}: ${esc(prev.join(", "))}</button>`}`;
+}
+function drawStSug(i) {
+  const box = stBox(i), q = norm(box.querySelector('[data-sf="q"]').value.trim()), ws = q.split(/\s+/);
+  const hits = q.length >= 2 ? WORKS.filter((x) => ws.every((p) => norm(x).includes(p))).slice(0, 8) : [];
+  box.querySelector(".sug").innerHTML = hits.length ? `<div class="tmcres">${hits.map((x) => `<button data-act="stpick" data-v="${esc(x)}">${esc(x)}</button>`).join("")}</div>`
+    : q.length >= 2 ? `<div class="pnote">В списке не найдено — впишите своими словами</div>` : "";
 }
 function rememberWorkers(xs) {   // недавние -- первыми, до 15; «как в прошлый раз» -- последний сохранённый состав
   if (!xs.length) return;
@@ -1032,10 +1115,16 @@ function saveJob(exitNow) {
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
   // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
-  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: cap($("#fWork").value),
+  // пустые работы не сохраняем; в «Сделано» книги -- работы построчно (переносы внутри описания бланк сведёт через «; »)
+  const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who] }))
+    .filter((w) => w.t || w.from || w.to || w.who.length);
+  const nt = steps.findIndex((w) => !w.t);
+  if (nt >= 0) return toast(`Работа ${nt + 1}: опишите, что сделали`, true);
+  const workers = [...new Set(steps.flatMap((w) => w.who))];
+  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).join("\n"),
     moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
-    workers: [...e.workers], crew: e.workers.length ? Math.min(e.workers.length, 20) : (j?.crew ?? null) };
-  rememberWorkers(e.workers);
+    steps: steps.length ? steps : null, workers, crew: workers.length ? Math.min(workers.length, 20) : (j?.crew ?? null) };
+  rememberWorkers(steps.at(-1)?.who || []);
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
     if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
@@ -1124,11 +1213,24 @@ document.addEventListener("click", async (ev) => {
       if (a === "reject" && !confirm(`Отклонить заявку «${s.name}»?`)) return;
       t.disabled = true; const r = await callAdmin({ action: a, id: s.id }); t.disabled = false;
       toast(r.error || (a === "approve" ? `${s.name}: доступ открыт` : `Заявка «${s.name}» отклонена`), !!r.error); reloadStaff(); break; }
-    case "wk": { const n = t.dataset.n, xs = S.edit.workers, i = xs.indexOf(n);
-      if (i >= 0) xs.splice(i, 1); else xs.push(n);
-      if ($("#fWkQ").value) { $("#fWkQ").value = ""; drawWkFound(); }
-      drawWorkers(); break; }
-    case "wklast": load("rz_wk_last", []).forEach((n) => { if (!S.edit.workers.includes(n)) S.edit.workers.push(n); }); drawWorkers(); break;
+    case "wk": case "stsame": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i];
+      const add = a === "stsame" ? (i ? S.edit.steps[i - 1].who : load("rz_wk_last", [])).filter((n) => !w.who.includes(n)) : w.who.includes(t.dataset.n) ? [] : [t.dataset.n];
+      if (a === "wk" && !add.length) w.who.splice(w.who.indexOf(t.dataset.n), 1);
+      if (w.who.length + add.length > ST_CREW) return toast(`В тех. отчёте на одну работу — до ${ST_CREW} человек. Разделите на две работы.`, true);
+      w.who.push(...add);
+      const q = stBox(i).querySelector('[data-sf="wq"]'); if (add.length) q.value = "";
+      drawStWho(i); drawStRows(); break; }
+    case "stadd": { const p = S.edit.steps.at(-1);   // следующая работа -- с окончания предыдущей, те же люди
+      S.edit.steps.push({ t: "", from: p?.to || "", to: "", who: [...(p?.who || [])] }); drawSteps();
+      stBox(S.edit.steps.length - 1).querySelector("textarea").focus(); break; }
+    case "stdel": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i];
+      if ((w.t || w.who.length) && !confirm(`Убрать работу ${i + 1}${w.t ? " «" + w.t.slice(0, 40) + "»" : ""}?`)) return;
+      S.edit.steps.splice(i, 1); drawSteps(); break; }
+    case "stfrom": case "stto": { const i = +t.closest(".work").dataset.i, f = a === "stfrom" ? "from" : "to";
+      S.edit.steps[i][f] = hhmm(); stBox(i).querySelector(`[data-sf="${f}"]`).value = S.edit.steps[i][f]; drawStTot(i); break; }
+    case "stpick": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i], box = stBox(i), ta = box.querySelector("textarea");
+      w.t = w.t.trim() ? w.t.trim() + "; " + t.dataset.v : t.dataset.v; ta.value = w.t; fitTa(ta);
+      box.querySelector('[data-sf="q"]').value = ""; drawStSug(i); break; }
     case "wkadd": { const name = fio($("#nwName").value), grp = $("#nwGrp").value;
       if (!name) return toast(FIO_ERR, true);
       const r = await sb.from("workers").upsert({ name, grp, active: true }, { onConflict: "name" }).select().single();
@@ -1151,7 +1253,8 @@ document.addEventListener("click", async (ev) => {
     case "pdel": delPhoto(t.dataset.id); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
     case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
-    case "to": { $("#more")?.setAttribute("open", ""); const w = $("#fWork"); if (!/^ТО-\d/.test(w.value)) w.value = (t.dataset.v + " " + w.value).trim(); else w.value = w.value.replace(/^ТО-\d/, t.dataset.v); break; }
+    case "to": { $("#more")?.setAttribute("open", ""); const w = S.edit.steps[0], ta = stBox(0).querySelector("textarea");
+      w.t = !/^ТО-\d/.test(w.t) ? (t.dataset.v + " " + w.t).trim() : w.t.replace(/^ТО-\d/, t.dataset.v); ta.value = w.t; break; }
     case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); break;
     case "wait": S.edit.wait = t.dataset.v; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.toggle("on", c === t));
       $("#fWaitOther").hidden = S.edit.wait !== "Другое"; if (S.edit.wait === "Другое") $("#fWaitOther").focus();
