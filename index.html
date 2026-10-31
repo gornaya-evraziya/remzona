@@ -215,6 +215,7 @@ details.more label.f:first-of-type { margin-top: 0; }
 .pad button:active { background: var(--press); }
 .err { color: var(--red); min-height: 22px; margin-top: 10px; font-size: 15px; }
 .login .sub { color: var(--muted); font-size: 15px; margin: -8px 0 6px; }
+.credit { text-align: center; color: var(--muted); font-size: 12px; margin: 28px 0 8px; opacity: .8; }
 .link { border: 0; background: none; color: var(--muted); font-size: 15px; padding: 10px; margin-top: 6px; cursor: pointer;
   text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
 .done { width: 72px; height: 72px; margin: 28px auto 8px; border-radius: 50%; display: grid; place-items: center;
@@ -284,6 +285,7 @@ const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
 const WAITS = ["Нет водителя", "Распоряжение диспетчера", "Пересменка / обед"];   // готова, ждёт не по нашей вине; + «Другое» текстом
 // участки: каждый видит работы своего участка (ограничение на сервере), участок меняет сам; в книгу Excel -- только Благодатный
 const SITES = ["Благодатный", "Восточный"], EXCEL_SITE = "Благодатный";
+const CREDIT = `<div class="credit">Разработчик — Умаров Р.К.</div>`;   // подпись создателя (решение пользователя 31.10.2026)
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
 
@@ -584,7 +586,7 @@ function renderLogin() {
       <label class="f" style="text-align:left">Фамилия И.О. (как в таблицах)</label><input class="inp" id="bName" placeholder="Умаров Р.К.">
       <label class="f" style="text-align:left">PIN — 4 цифры</label><input class="inp" id="bPin" inputmode="numeric" maxlength="4" type="password">
       <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="bPin2" inputmode="numeric" maxlength="4" type="password">
-      <button class="big" data-act="bootstrap">Создать администратора</button><div class="err" id="lerr"></div></div>`;
+      <button class="big" data-act="bootstrap">Создать администратора</button><div class="err" id="lerr"></div></div>${CREDIT}`;
     return;
   }
   if (L.mode === "signup") {
@@ -596,7 +598,7 @@ function renderLogin() {
       <label class="f" style="text-align:left">Придумайте PIN — 4 цифры</label><input class="inp" id="sPin" inputmode="numeric" maxlength="4" type="password">
       <label class="f" style="text-align:left">PIN ещё раз</label><input class="inp" id="sPin2" inputmode="numeric" maxlength="4" type="password">
       <button class="big" data-act="signup">Зарегистрироваться</button><div class="err" id="lerr"></div>
-      <button class="link" data-act="tologin">Уже есть учётная запись — войти</button></div>`;
+      <button class="link" data-act="tologin">Уже есть учётная запись — войти</button></div>${CREDIT}`;
     $("#sCode").value = L.code;
     return;
   }
@@ -605,7 +607,7 @@ function renderLogin() {
     app.innerHTML = `<div class="login"><img class="logo" src="logo.png" alt=""><h1>Ремзона ГЕ — вход</h1>
       <label class="f" style="text-align:left">Фамилия</label><input class="inp" id="lName" autocomplete="off" placeholder="Например, Иванов">
       <button class="big" data-act="find">Далее</button>${names}<div class="err">${esc(L.err)}</div>
-      <button class="link" data-act="tosignup">Нет учётной записи? Зарегистрироваться</button></div>`;
+      <button class="link" data-act="tosignup">Нет учётной записи? Зарегистрироваться</button></div>${CREDIT}`;
     $("#lName").value = L.q;
     return;
   }
@@ -614,7 +616,7 @@ function renderLogin() {
     <div class="dots">${[0, 1, 2, 3].map((i) => `<i class="${i < L.pin.length ? "on" : ""}"></i>`).join("")}</div>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-act="digit" data-d="${n}">${n}</button>`).join("")}
       <button data-act="other" style="font-size:15px">Другой</button><button data-act="digit" data-d="0">0</button><button data-act="back">⌫</button></div>
-    <div class="err">${esc(L.err)}</div></div>`;
+    <div class="err">${esc(L.err)}</div></div>${CREDIT}`;
 }
 async function tryPin() {
   const p = L.pick, pin = L.pin;
@@ -802,7 +804,7 @@ function render() {
         <select class="inp" id="ncModel"><option>NTE 240</option><option>TR100A</option></select><button class="btn red" data-act="addcar">Добавить</button></div>`;
     }
   }
-  $("#app").innerHTML = h;
+  $("#app").innerHTML = h + CREDIT;
   if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
   renderConn(); hideSplash();
 }
