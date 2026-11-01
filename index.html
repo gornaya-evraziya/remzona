@@ -845,7 +845,7 @@ function render() {
     const mine = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start)
       .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
     h = `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
-      ${views}${yardH}${S.view === "long" ? "" : `<h2>Выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`}`;
+      ${views}${yardH}${S.view === "long" ? "" : `<h2>Выезды за смену <span class="n">${mine.length}</span><button class="btn small" style="margin-left:auto;text-transform:none;letter-spacing:0" data-act="chatmsg">Сообщение в чат</button></h2>${list(mine, {}, "Пока нет")}`}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
@@ -855,6 +855,7 @@ function render() {
       const notIn = js.filter((j) => j.site === EXCEL_SITE && j.rev > j.imported_rev).length;
       h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
+        <button class="btn" data-act="chatmsg">Сообщение в чат</button>
         ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
         ${"Notification" in window && (pushOk() ? !S.push && Notification.permission !== "denied" : Notification.permission === "default")
           ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
@@ -1333,6 +1334,38 @@ function openSite() {
     <div class="sitepick">${SITES.map((v) => `<button class="${S.me.site === v ? "on" : ""}" data-act="setsite" data-v="${v}">${v}</button>`).join("")}</div>`;
   $("#sheet").hidden = false;
 }
+// сообщение в общий чат за выбранную смену (01.11.2026, решение пользователя): все записи участка, кроме ТО (для ТО нет полей замеров).
+// Входят: заехавшие или выехавшие в смену и начатые раньше, если запись меняли в эту смену («Продолжение ремонта»).
+// Стоят с прошлых смен, запись не менялась с начала смены -- вверху списком «Без воздействия», как в чате.
+function chatText(sh) {
+  const st = sh.start.getTime(), en = st + SHIFT_LEN, T = (x) => x ? new Date(x).getTime() : 0, inS = (t) => t >= st && t < en;
+  const js = allJobs().filter((j) => j.kind !== "ТО" && (j.site || S.me.site) === S.me.site).sort((a, b) => T(a.started_at) - T(b.started_at));
+  const xs = js.filter((j) => inS(T(j.started_at)) || inS(T(j.ended_at))
+    || (T(j.started_at) < st && (!j.ended_at || T(j.ended_at) >= en) && inS(T(j.updated_at))));
+  const idle = js.filter((j) => !j.ended_at && T(j.started_at) < st && T(j.updated_at) < st);
+  if (!xs.length && !idle.length) return "";
+  const lines = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const block = (j) => {
+    const s = new Date(j.started_at), old = s.getTime() < st, out = j.ended_at && T(j.ended_at) < en ? new Date(j.ended_at) : null;
+    return [j.gar, j.moto ? `М/ч ${j.moto}` : "", `${old ? dm(s) + " " : ""}${hm(s)}-${out ? hm(out) : "в ремонте"}`, old ? "Продолжение ремонта" : "",
+      ...lines(j.fault), ...lines(j.work), ...lines(j.tmc).map((x) => "ТМЦ: " + x)].filter(Boolean).join("\n");
+  };
+  return [`Карьер ${S.me.site}:`, idle.map((j) => `${j.gar}\nБез воздействия`).join("\n"), ...xs.map(block)].filter(Boolean).join("\n\n");
+}
+function openChatMsg() {
+  const sh = myShift(), text = chatText(sh);
+  if (!text) return toast("За эту смену записей нет");
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Сообщение в чат<small>${dm(sh.date)} · смена ${sh.n}</small></b><button class="nb r" data-act="close">Закрыть</button></div>
+    <div style="font-size:15px;color:var(--muted);margin:12px 16px 8px">Текст можно поправить перед отправкой.</div>
+    <textarea class="inp" id="chatTxt" style="min-height:50vh">${esc(text)}</textarea>
+    <div class="actions bar"><button class="btn" data-act="chatcopy">Скопировать</button>${navigator.share ? `<button class="btn red" data-act="chatshare">Отправить</button>` : ""}</div>`;
+  $("#sheet").hidden = false;
+}
+function copyChatMsg() {
+  const ta = $("#chatTxt"), manual = () => { ta.focus(); ta.select(); toast("Выделите текст и скопируйте", true); };
+  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => toast("Текст скопирован"), manual);
+  else manual();
+}
 async function moveSite(site, saved) {
   if (!saved) {
     if (S.queue.length) return toast(`Сначала дождитесь отправки записей: ${S.queue.length}`, true);
@@ -1472,6 +1505,9 @@ document.addEventListener("click", async (ev) => {
     case "sesite": S.edit.site = t.dataset.v; document.querySelectorAll("#seSite .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "ssite": L.site = t.dataset.v; document.querySelectorAll("#sSite button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "site": openSite(); break;
+    case "chatmsg": openChatMsg(); break;
+    case "chatcopy": copyChatMsg(); break;
+    case "chatshare": navigator.share({ text: $("#chatTxt").value }).catch(() => {}); break;
     case "shift": pickShift(+t.dataset.v); break;
     case "tmc": { const r = PRICE.rows[+t.dataset.i], qty = Math.max(1, parseInt($("#fTmcN").value, 10) || 1), ta = $("#fTmc");
       ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + `${r.a} ${r.n} — ${qty} шт`;   // как окно ТМЦ книги
