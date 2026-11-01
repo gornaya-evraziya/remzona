@@ -53,6 +53,8 @@ html, body { margin: 0; background: var(--bg); color: var(--text);
   font: 17px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { padding-bottom: env(safe-area-inset-bottom); }
+/* как у приложения: экран не «оттягивается» за край (поля при пролистывании) и не обновляется потягиванием -- данные обновляются сами */
+html, body { overscroll-behavior: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { touch-action: manipulation; }
 svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
@@ -568,15 +570,20 @@ async function sendQueue() {
       else res = await sb.from("jobs").update(q.data).eq("id", q.id).select().single();
       if (res.error) {
         if (netErr(res.error) || authErr(res)) break;
-        toast("Не сохранено (" + (q.data.gar || "") + "): " + res.error.message, true);
+        // PGRST116 -- записи на сервере уже нет (удалили / убрана после переноса в книгу)
+        toast(res.error.code === "PGRST116" && !q.isNew ? `${q.data.gar || "Запись"}: запись уже удалена — изменения не сохранены`
+          : "Не сохранено (" + (q.data.gar || "") + "): " + res.error.message, true);
+      } else if (res.data.deleted && !q.data.deleted) {
+        toast(`${res.data.gar}: запись уже удалена — изменения не сохранены`, true); S.jobs.delete(res.data.id);
       } else {
         S.jobs.set(res.data.id, res.data);
+        if (S.edit?.j?.id === res.data.id) S.edit.rev = res.data.rev;   // своё изменение, ушедшее при открытой карточке, -- не «чужое»
         // пока запрос шёл, запись дополнили -- дополнение отправить следующим запросом, а не потерять
         if (JSON.stringify(q.data) !== sent) { q.isNew = false; saveQ(); continue; }
       }
       S.queue.shift(); saveQ();
     }
-  } finally { S.flushing = null; cacheJobs(); renderConn(); render(); retryLater(); }
+  } finally { S.flushing = null; cacheJobs(); renderConn(); renderSoft(); retryLater(); }
 }
 // пока очередь не пуста -- повтор через 5 с, 10, 20 … 60 с: связь вернулась -- уходит в ближайшую попытку
 let retryT = null, retryMs = 5000;
@@ -627,10 +634,10 @@ function subscribe() {
       if (row.deleted) S.jobs.delete(row.id); else S.jobs.set(row.id, row);
       if (!row.deleted && (!prev || prev.rev !== row.rev)) announce(row, prev);
     }
-    cacheJobs(); render();
+    cacheJobs(); renderSoft();
   }).on("postgres_changes", { event: "*", schema: "public", table: "photos" }, (p) => {
     if (p.eventType === "DELETE") dropPhoto(p.old?.id); else if (p.new.job_id) addPhoto(p.new);
-    render(); drawPhotos();
+    renderSoft(); drawPhotos();
   }).subscribe((status) => { S.rt = status; renderConn(); });
   // кто сейчас в приложении (Realtime Presence): в канале участка только id сотрудника, имена -- из списка у администратора
   if (S.pres) sb.removeChannel(S.pres);
@@ -880,7 +887,7 @@ function render() {
         ${own && others.length ? `<h2>Другой участок</h2><div class="list">${others.map(row).join("")}</div>` : ""}
         <h2>Добавить сотрудника</h2>
         <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="nsName" placeholder="Метелкин А.В.">
-        <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip on" data-act="role" data-v="mechanic">Механик</button>${own ? `<button class="chip" data-act="role" data-v="admin">Администратор</button>` : ""}</div>
+        <label class="f">Роль</label><div class="chips" id="nsRole"><button class="chip ${S.nsRole !== "admin" ? "on" : ""}" data-act="role" data-v="mechanic">Механик</button>${own ? `<button class="chip ${S.nsRole === "admin" ? "on" : ""}" data-act="role" data-v="admin">Администратор</button>` : ""}</div>
         <label class="f">PIN — 4 цифры (сообщите сотруднику)</label><div class="timebox"><input class="inp" id="nsPin" inputmode="numeric" maxlength="4"><button class="btn" data-act="genpin">Случайный</button></div>
         <div class="actions"><button class="btn red" data-act="addstaff">Добавить</button></div>
         <h2>Исполнители работ <span class="n">${S.workers.filter((w) => w.active).length}</span></h2>
@@ -898,9 +905,19 @@ function render() {
         <select class="inp" id="ncModel"><option>NTE 240</option><option>TR100A</option></select><button class="btn red" data-act="addcar">Добавить</button></div>`;
     }
   }
+  // перерисовка не стирает вписанное администратором («Люди», «Машины»): значения полей -- на место
+  const keep = [...$("#app").querySelectorAll("input[id], select[id]")].map((el) => [el.id, el.value]);
   $("#app").innerHTML = h + CREDIT;
+  keep.forEach(([id, v]) => { const el = document.getElementById(id); if (el?.closest("#app")) el.value = v; });
   if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
   renderConn(); hideSplash();
+}
+// фоновая перерисовка (раз в минуту, события с сервера): пока вписывают в поле на экране -- не трогать (клавиатура не закроется),
+// перерисуется в следующий раз
+function renderSoft() {
+  const a = document.activeElement;
+  if (a?.closest?.("#app") && a.matches("input, select, textarea")) return;
+  render();
 }
 // «Люди» → исполнители: поиск (и скрытые), скрыть уволенного / вернуть -- в выборе у механиков скрытых нет
 function drawWkAdmin() {
@@ -916,7 +933,8 @@ function openJob(id) {
   const j = id ? allJobs().find((x) => x.id === id) : null;
   // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
   const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
-  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", steps: stepsOf(j) };
+  // rev -- версия записи на сервере при открытии: при сохранении проверить, не изменил ли её кто-то другой
+  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", steps: stepsOf(j), rev: j && S.jobs.get(j.id)?.rev };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<div class="sec"><h3>Выполнены работы</h3><span class="rows" id="stRows"></span></div><div id="steps"></div>
@@ -1233,6 +1251,13 @@ function closeTp() { $("#tpick").hidden = true; TP = null; }
 function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
 function saveJob(exitNow) {
   const e = S.edit, j = e.j;
+  // пока карточка была открыта: запись удалили или её изменил другой сотрудник (иначе его изменения затёрлись бы)
+  if (j && !j.id.startsWith("q:")) {
+    const now = S.jobs.get(j.id), mine = S.queue.some((q) => (j.client_id && q.cid === j.client_id) || q.id === j.id);
+    if (!now) { toast(`${j.gar}: запись уже удалена — изменения не сохранены`, true); return closeSheet(); }
+    if (e.rev != null && now.rev !== e.rev && !mine
+      && !confirm(`Запись ${j.gar} изменили, пока вы её правили.\n\nОК — сохранить ваш вариант (изменения другого пропадут).\nОтмена — открыть запись заново с новыми данными.`)) return openJob(j.id);
+  }
   const gar = $("#fGar").value.trim();
   if (!S.machines.some((m) => m.gar === gar)) return toast("Выберите гаражный номер из списка", true);
   const started = fromInput($("#fStart").value);
@@ -1378,7 +1403,7 @@ document.addEventListener("click", async (ev) => {
       const r = await sb.from("workers").upsert({ name, grp, active: true }, { onConflict: "name" }).select().single();
       if (r.error) return toast(r.error.message, true);
       S.workers = [...S.workers.filter((w) => w.name !== name), r.data].sort((a, b) => a.name.localeCompare(b.name, "ru"));
-      save("rz_workers", S.workers); toast(`${name} — в списке исполнителей`); render(); break; }
+      save("rz_workers", S.workers); $("#nwName").value = ""; toast(`${name} — в списке исполнителей`); render(); break; }
     case "wkact": { const w = S.workers.find((x) => x.id === t.dataset.id);
       const r = await sb.from("workers").update({ active: !w.active }).eq("id", w.id);
       if (r.error) return toast(r.error.message, true);
@@ -1416,7 +1441,7 @@ document.addEventListener("click", async (ev) => {
       render(); break;
     case "install": if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; render(); } break;
     case "hintoff": save("rz_hint_off", true); render(); break;
-    case "role": document.querySelectorAll("#nsRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
+    case "role": S.nsRole = t.dataset.v; document.querySelectorAll("#nsRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "genpin": $("#nsPin").value = randPin(); break;
     case "addstaff": {
       const name = fio($("#nsName").value), pin = $("#nsPin").value.trim(), role = document.querySelector("#nsRole .chip.on").dataset.v;
@@ -1424,6 +1449,7 @@ document.addEventListener("click", async (ev) => {
       if (!/^\d{4}$/.test(pin)) return toast("PIN — ровно 4 цифры", true);
       t.disabled = true; const r = await callAdmin({ action: "create", name, role, pin }); t.disabled = false;
       if (r.error) return toast(r.error, true);
+      $("#nsName").value = ""; $("#nsPin").value = ""; S.nsRole = "";
       toast(`${name} добавлен. PIN: ${pin}`); reloadStaff(); break;
     }
     case "pin": { const s = S.staff.find((x) => x.id === t.dataset.id); const pin = prompt(`Новый PIN для ${s.name} (4 цифры):`, randPin());
@@ -1465,7 +1491,7 @@ document.addEventListener("click", async (ev) => {
       const r = await sb.from("machines").upsert({ gar, model, active: true });
       if (r.error) return toast(r.error.message, true);
       const m = S.machines.find((x) => x.gar === gar); if (m) { m.active = true; m.model = model; } else S.machines.push({ gar, model, active: true });
-      S.machines.sort((x, y) => x.gar.localeCompare(y.gar, "ru", { numeric: true })); save("rz_machines", S.machines); toast(`Машина ${gar} добавлена`); render(); break; }
+      S.machines.sort((x, y) => x.gar.localeCompare(y.gar, "ru", { numeric: true })); save("rz_machines", S.machines); $("#ncGar").value = ""; toast(`Машина ${gar} добавлена`); render(); break; }
   }
 });
 document.addEventListener("keydown", (e) => {
@@ -1480,7 +1506,7 @@ $("#tpick").addEventListener("click", (e) => { if (e.target.id === "tpick") clos
 $("#pview").addEventListener("click", (e) => { if (e.target.id === "pview") e.target.hidden = true; });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
-async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); render(); } catch {} loadPrice(); markSeen(); }
+async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); renderSoft(); } catch {} loadPrice(); markSeen(); }
 // «был в приложении N мин назад» у администратора: при входе и каждом обновлении (раз в 2 мин, пока приложение на экране)
 function markSeen() { if (S.me && !document.hidden) sb.rpc("seen").then(() => {}, () => {}); }
 window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
@@ -1492,7 +1518,7 @@ document.addEventListener("visibilitychange", () => {
   if (S.update && $("#sheet").hidden && !S.queue.length) return location.reload();
   refresh();
 });
-setInterval(() => { if (S.me && $("#sheet").hidden) render(); }, 60000);   // длительность «на площадке»
+setInterval(() => { if (S.me && $("#sheet").hidden) renderSoft(); }, 60000);   // длительность «на площадке»
 setInterval(refresh, 120000);
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_OUT" && S.me) showLogin(); });
 
