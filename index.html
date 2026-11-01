@@ -956,7 +956,7 @@ function openJob(id) {
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input type="hidden" id="fEnd" value="${toInput(j.ended_at)}">${tBtn("fEnd", "Время выезда", dis)}
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
-    ${j && isAdmin() ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
+    ${j && (isAdmin() || j.mechanic_id === S.me.id) ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
     ${can ? `<div class="actions bar">${j ? `<button class="btn ${j.ended_at ? "red" : ""}" data-act="savejob">Сохранить</button>${!j.ended_at ? `<button class="btn red" data-act="exit">Выехала сейчас</button>` : ""}`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
@@ -1192,6 +1192,7 @@ function setStTime(i, f, v) {
 }
 let TP = null;
 const WH = 36;   // высота строки барабана, px (= .wheel .it)
+const MSTEP = 5;   // шаг минут в барабане
 function wheel(items, sel, cls = "") {
   const el = document.createElement("div"); el.className = "wheel " + cls;
   el.innerHTML = `<div class="wsp"></div>${items.map((t, i) => `<div class="it" data-i="${i}">${t}</div>`).join("")}<div class="wsp"></div>`;
@@ -1202,28 +1203,30 @@ function wheel(items, sel, cls = "") {
   return el;
 }
 function openTp(t) {
-  const box = $("#wheels"), H = Array.from({ length: 24 }, (_, k) => pad2(k)), M = Array.from({ length: 60 }, (_, k) => pad2(k));
+  // минуты -- шагом 5 (решение пользователя 01.11.2026: меньше листать); значение не кратно 5 -- ближайшее
+  const box = $("#wheels"), H = Array.from({ length: 24 }, (_, k) => pad2(k)), M = Array.from({ length: 60 / MSTEP }, (_, k) => pad2(k * MSTEP));
+  const mi = (m) => Math.min(M.length - 1, Math.round(m / MSTEP));
   const colon = () => Object.assign(document.createElement("div"), { className: "colon", textContent: ":" });
   box.innerHTML = "";
   if (t.dataset.sf) {
     const i = +t.closest(".work").dataset.i, f = t.dataset.sf, v = S.edit.steps[i][f], cur = isHm(v) ? v : hhmm();
     TP = { i, f }; $("#tpTitle").textContent = f === "from" ? "Начало работ" : "Окончание работ"; $("#tpClear").hidden = !v;
-    box.append(wheel(H, +cur.slice(0, 2)), colon(), wheel(M, +cur.slice(3)));
+    box.append(wheel(H, +cur.slice(0, 2)), colon(), wheel(M, mi(+cur.slice(3))));
   } else {
     // дни: неделя назад (или с дня значения, если раньше) … завтра
     const id = t.dataset.for, v = $("#" + id).value, cur = v ? new Date(v) : new Date();
     const ago = Math.round((midnight(new Date()) - midnight(cur)) / 864e5), back = Math.max(7, ago);
     const days = Array.from({ length: back + 2 }, (_, k) => { const d = midnight(new Date()); d.setDate(d.getDate() - back + k); return d; });
     TP = { id, days }; $("#tpTitle").textContent = t.dataset.t; $("#tpClear").hidden = !(id === "fEnd" && v);
-    box.append(wheel(days.map(dayName), Math.min(days.length - 1, Math.max(0, back - ago)), "day"), wheel(H, cur.getHours()), colon(), wheel(M, cur.getMinutes()));
+    box.append(wheel(days.map(dayName), Math.min(days.length - 1, Math.max(0, back - ago)), "day"), wheel(H, cur.getHours()), colon(), wheel(M, mi(cur.getMinutes())));
   }
   $("#tpick").hidden = false;
   box.querySelectorAll(".wheel").forEach((w) => w.init());
 }
 function doneTp() {
   const ws = [...$("#wheels").querySelectorAll(".wheel")].map((w) => Math.min(w.querySelectorAll(".it").length - 1, Math.max(0, Math.round(w.scrollTop / WH))));
-  if (TP.f) setStTime(TP.i, TP.f, `${pad2(ws[0])}:${pad2(ws[1])}`);
-  else { const d = TP.days[ws[0]]; $("#" + TP.id).value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(ws[1])}:${pad2(ws[2])}`; tShow(TP.id); }
+  if (TP.f) setStTime(TP.i, TP.f, `${pad2(ws[0])}:${pad2(ws[1] * MSTEP)}`);
+  else { const d = TP.days[ws[0]]; $("#" + TP.id).value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(ws[1])}:${pad2(ws[2] * MSTEP)}`; tShow(TP.id); }
   closeTp();
 }
 function closeTp() { $("#tpick").hidden = true; TP = null; }
@@ -1403,8 +1406,9 @@ document.addEventListener("click", async (ev) => {
       $("#fWaitOther").hidden = true; $("#fReady").value = ""; tShow("fReady"); break;
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
-    case "deljob": if (confirm("Удалить запись? У механика она тоже пропадёт.")) { const j = S.edit.j;
-      enqueue(j.client_id || null, { deleted: true }, false, j.id.startsWith("q:") ? null : j.id); closeSheet(); } break;
+    // удалить может администратор и механик -- свою запись (внёс по ошибке); чужую сервер не даст (jobs_before)
+    case "deljob": { const j = S.edit.j; if (!confirm(`Удалить запись по машине ${j.gar}? Она пропадёт у всех.`)) return;
+      enqueue(j.client_id || null, { deleted: true }, false, j.id.startsWith("q:") ? null : j.id); closeSheet(); toast(`${j.gar}: запись удалена`); break; }
     case "seen": S.seen = Date.now(); save("rz_seen", S.seen); document.title = "Ремзона ГЕ"; render(); break;
     case "notif": if (pushOk()) await pushOn(true).catch((e) => toast("Уведомления: " + (e.message || e), true));
       else await Notification.requestPermission();
