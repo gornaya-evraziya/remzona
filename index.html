@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#F9F9F9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ремзона ГЕ">
@@ -13,272 +13,337 @@
 <title>Ремзона ГЕ</title>
 <script>try { const t = JSON.parse(localStorage.getItem("rz_theme")); if (t && t !== "auto") document.documentElement.dataset.theme = t; } catch {}</script>
 <style>
+/* оформление в духе iOS (01.11.2026, выбор пользователя по макету «Стиль iPhone»): сгруппированные списки, сегменты,
+   «таблетки» фамилий, полупрозрачные панели, выбор времени барабанами; акцент -- красный ГЕ. Имена переменных прежние. */
 :root {
   color-scheme: light;
-  --red: #C30013; --red-soft: #FBEAEC; --graphite: #3F3F3F; --on-graphite: #FFFFFF; --strong: #2B2B2B;
-  --bg: #F2F2F2; --card: #FFFFFF; --line: #DADADA; --line2: #EEEEEE; --text: #222; --muted: #6B6B6B;
-  --chip: #EDEDED; --press: #E6E6E6; --disabled: #EFEFEF; --scrim: rgba(0,0,0,.35); --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.05);
-  --green: #2E7D32; --green-soft: #E6F2E7; --amber: #B26A00; --amber-soft: #FFF3DC;
+  --red: #C30013; --red-soft: rgba(195,0,19,.1); --graphite: #8E8E93; --on-graphite: #FFFFFF; --strong: #000;
+  --bg: #F2F2F7; --card: #FFFFFF; --seg-on: #FFFFFF; --line: rgba(60,60,67,.18); --line2: rgba(60,60,67,.18); --text: #000;
+  --muted: rgba(60,60,67,.6); --muted2: rgba(60,60,67,.3); --chip: rgba(118,118,128,.12); --fill2: rgba(118,118,128,.2);
+  --press: rgba(118,118,128,.16); --disabled: rgba(118,118,128,.08); --scrim: rgba(0,0,0,.4); --shadow: none;
+  --green: #248A3D; --green-soft: rgba(52,199,89,.15); --amber: #C96400; --amber-soft: rgba(255,149,0,.15);
+  --bar: rgba(249,249,249,.94); --toast: rgba(28,28,30,.92);
   --logo-bg: transparent; --logo-pad: 0;
 }
 /* тёмная тема: по настройке телефона или кнопкой в шапке (data-theme) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --red: #E5323F; --red-soft: #3B1519; --graphite: #4A4A4A; --on-graphite: #FFFFFF; --strong: #F2F2F2;
-    --bg: #121212; --card: #1E1E1E; --line: #343434; --line2: #2A2A2A; --text: #EAEAEA; --muted: #9E9E9E;
-    --chip: #2C2C2C; --press: #2E2E2E; --disabled: #262626; --scrim: rgba(0,0,0,.6); --shadow: none;
-    --green: #6CC070; --green-soft: #1A2E1C; --amber: #FFB547; --amber-soft: #3A2C12;
+    --red: #FF453A; --red-soft: rgba(255,69,58,.18); --graphite: #636366; --on-graphite: #FFFFFF; --strong: #FFF;
+    --bg: #000; --card: #1C1C1E; --seg-on: #636366; --line: rgba(84,84,88,.6); --line2: rgba(84,84,88,.6); --text: #FFF;
+    --muted: rgba(235,235,245,.6); --muted2: rgba(235,235,245,.3); --chip: rgba(118,118,128,.24); --fill2: rgba(118,118,128,.36);
+    --press: rgba(118,118,128,.28); --disabled: rgba(118,118,128,.12); --scrim: rgba(0,0,0,.6); --shadow: none;
+    --green: #30D158; --green-soft: rgba(48,209,88,.18); --amber: #FF9F0A; --amber-soft: rgba(255,159,10,.18);
+    --bar: rgba(22,22,22,.94); --toast: rgba(58,58,60,.95);
     --logo-bg: #FFFFFF; --logo-pad: 3px 6px;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --red: #E5323F; --red-soft: #3B1519; --graphite: #4A4A4A; --on-graphite: #FFFFFF; --strong: #F2F2F2;
-  --bg: #121212; --card: #1E1E1E; --line: #343434; --line2: #2A2A2A; --text: #EAEAEA; --muted: #9E9E9E;
-  --chip: #2C2C2C; --press: #2E2E2E; --disabled: #262626; --scrim: rgba(0,0,0,.6); --shadow: none;
-  --green: #6CC070; --green-soft: #1A2E1C; --amber: #FFB547; --amber-soft: #3A2C12;
+  --red: #FF453A; --red-soft: rgba(255,69,58,.18); --graphite: #636366; --on-graphite: #FFFFFF; --strong: #FFF;
+  --bg: #000; --card: #1C1C1E; --seg-on: #636366; --line: rgba(84,84,88,.6); --line2: rgba(84,84,88,.6); --text: #FFF;
+  --muted: rgba(235,235,245,.6); --muted2: rgba(235,235,245,.3); --chip: rgba(118,118,128,.24); --fill2: rgba(118,118,128,.36);
+  --press: rgba(118,118,128,.28); --disabled: rgba(118,118,128,.12); --scrim: rgba(0,0,0,.6); --shadow: none;
+  --green: #30D158; --green-soft: rgba(48,209,88,.18); --amber: #FF9F0A; --amber-soft: rgba(255,159,10,.18);
+  --bar: rgba(22,22,22,.94); --toast: rgba(58,58,60,.95);
   --logo-bg: #FFFFFF; --logo-pad: 3px 6px;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: 17px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { padding-bottom: env(safe-area-inset-bottom); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { touch-action: manipulation; }
 svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
 img.logo { background: var(--logo-bg); padding: var(--logo-pad); border-radius: 6px; }
-header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 3px solid var(--red);
-  padding: calc(6px + env(safe-area-inset-top)) 6px 6px 16px; display: flex; align-items: center; gap: 6px; }
+/* полупрозрачные панели (шапка, низ) -- как в iOS */
+header, #nav, .dock, .actions.bar, .panel .head { -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+header { position: sticky; top: 0; z-index: 5; background: var(--bar); border-bottom: .5px solid var(--line);
+  padding: calc(4px + env(safe-area-inset-top)) 4px 4px 16px; display: flex; align-items: center; gap: 4px; min-height: 48px; }
 header[hidden] { display: none; }
 header img { height: 19px; flex: none; }
 header .iconbtn { width: 40px; }
 header .who { margin-left: auto; min-width: 0; text-align: right; line-height: 1.25; }
-header .who b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--strong); }
+header .who b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--strong); }
 #conn { font-size: 12px; color: var(--muted); white-space: nowrap; }
-#conn::before { content: "●"; margin-right: 4px; color: #999; }
+#conn::before { content: "●"; margin-right: 4px; color: var(--muted2); }
 #conn.ok::before { color: var(--green); } #conn.wait::before { color: var(--amber); }
 .iconbtn { border: 0; background: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px;
-  cursor: pointer; color: var(--strong); flex: none; padding: 0; font-size: 20px; }
+  cursor: pointer; color: var(--red); flex: none; padding: 0; font-size: 20px; }
 .iconbtn:active { background: var(--press); }
-main { max-width: 720px; margin: 0 auto; padding: 12px 16px 120px; }
-/* дизайн «А · список карточек» (30.10.2026, выбор пользователя): крупные заголовки, номер машины -- главный акцент */
-h2 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--strong); margin: 26px 0 12px;
-  display: flex; align-items: baseline; gap: 8px; }
-h2 .n { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-h2 .n.red { align-self: center; background: var(--red); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; }
-.shift { background: var(--graphite); color: var(--on-graphite); border-radius: 12px; padding: 11px 14px; display: flex;
-  justify-content: space-between; align-items: center; font-size: 15px; flex-wrap: wrap; gap: 12px 8px; }
-.shift .sw { display: inline-flex; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; overflow: hidden; vertical-align: middle; margin: -4px 4px; }
-.shift .sw button { border: 0; background: none; color: inherit; font-size: 14px; font-weight: 600; min-height: 36px; padding: 0 12px; cursor: pointer; opacity: .75; }
-.shift .sw button.on { background: var(--on-graphite); color: var(--graphite); opacity: 1; }
-.shift small { opacity: .75; font-size: 15px; }
-.shift .site { border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.08); color: inherit; border-radius: 999px;
-  font-size: 14px; font-weight: 600; padding: 0 12px; min-height: 36px; margin: -6px -6px -6px auto; cursor: pointer; white-space: nowrap; }
-.shift .site::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 3px 8px;
-  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .7; }
-.seg.two { grid-template-columns: 1fr 1fr; }
-.seg.two button { font-size: 16px; }
-.sitepick { display: grid; gap: 10px; margin: 8px 0 12px; }
-.sitepick button { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 0 16px; border-radius: 14px;
-  border: 1px solid var(--line); background: var(--card); color: var(--strong); font-size: 18px; font-weight: 600; cursor: pointer; }
-.sitepick button.on { border-color: var(--graphite); box-shadow: inset 0 0 0 1px var(--graphite); }
-.sitepick button.on::after { content: "✓"; color: var(--red); font-size: 20px; }
-.big { width: 100%; border: 0; border-radius: 14px; background: var(--red); color: #fff; font-size: 19px; font-weight: 600;
-  min-height: 58px; padding: 14px; margin-top: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(195,0,19,.25); }
-.big:active { transform: scale(.99); filter: brightness(.95); }
-/* карточка машины */
-.card { background: var(--card); border: 1px solid var(--line); border-left-width: 4px; border-radius: 16px; padding: 14px 14px 14px 8px;
-  margin-bottom: 10px; display: flex; gap: 12px; cursor: pointer; box-shadow: var(--shadow); transition: transform .12s ease, background .12s; }
-.card:active { background: var(--press); transform: scale(.99); }
-.card.open { border-left-color: var(--red); }
-.card.closed { border-left-color: var(--green); }
-.card.ready { border-left-color: var(--amber); }
-.card.new { box-shadow: 0 0 0 2px var(--red); }
-.card .gar { flex: none; width: 76px; align-self: center; text-align: center; font-size: 32px; font-weight: 750; line-height: 1;
+main { max-width: 720px; margin: 0 auto; padding: 8px 16px 120px; }
+/* заголовки разделов -- мелкие прописные над группой */
+h2 { font-size: 13px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 24px 16px 7px;
+  display: flex; align-items: center; gap: 6px; }
+h2 .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+h2 .n.red { background: var(--red); color: #fff; border-radius: 9px; padding: 0 7px; font-size: 12px; line-height: 18px; font-weight: 600; }
+/* смена: дата, сегмент Ночь/День, участок */
+.shift { background: var(--card); border-radius: 10px; padding: 7px 6px 7px 16px; margin-top: 8px; display: flex; flex-wrap: wrap;
+  justify-content: space-between; align-items: center; gap: 6px 8px; font-size: 15px; }
+.shift > span { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shift .sw { display: inline-flex; background: var(--chip); border-radius: 9px; padding: 2px; }
+.shift .sw button { border: 0; background: none; color: inherit; font-size: 13px; font-weight: 500; min-height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer; }
+.shift .sw button.on { background: var(--seg-on); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); font-weight: 600; }
+.shift small { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.shift .site { border: 0; background: none; color: var(--red); font-size: 15px; padding: 0 10px; min-height: 36px; margin-left: auto; cursor: pointer; white-space: nowrap; }
+.shift .site::after { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 0 1px 6px;
+  border-right: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); opacity: .6; }
+.sitepick { background: var(--card); border-radius: 10px; overflow: hidden; margin: 12px 0; }
+.sitepick button { position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 16px;
+  border: 0; background: none; color: var(--text); font-size: 17px; cursor: pointer; }
+.sitepick button + button::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+.sitepick button:active { background: var(--press); }
+.sitepick button.on::after { content: "✓"; color: var(--red); font-weight: 600; }
+.big { width: 100%; border: 0; border-radius: 14px; background: var(--red); color: #fff; font-size: 17px; font-weight: 600;
+  min-height: 50px; padding: 13px; margin-top: 16px; cursor: pointer; }
+.big:active { opacity: .8; }
+/* машины -- строки сгруппированного списка; время справа: на площадке (красное) / ждёт (оранжевое) / стояла (серое) */
+.group { background: var(--card); border-radius: 10px; overflow: hidden; }
+.card { position: relative; background: var(--card); display: flex; gap: 12px; align-items: center; padding: 11px 32px 11px 16px;
+  cursor: pointer; transition: background .12s; }
+.group > .card + .card::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+.card::after { content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; margin-top: -5px;
+  border-right: 2px solid var(--muted2); border-top: 2px solid var(--muted2); transform: rotate(45deg); }
+.card:active { background: var(--press); }
+.card.new { box-shadow: inset 4px 0 0 var(--red); }
+.card .gar { flex: none; width: 60px; align-self: center; font-size: 26px; font-weight: 700; line-height: 1;
   color: var(--strong); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.card .gar small { display: block; margin-top: 6px; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.card .gar small { display: block; margin-top: 5px; font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
 .card .body { flex: 1; min-width: 0; }
-.card .top { display: flex; gap: 8px; align-items: baseline; }
-.card .kind { font-size: 16px; font-weight: 700; color: var(--strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* время: на площадке (красный) / ждёт (жёлтый) / сколько стояла (серый) -- цифры одной ширины, не прыгают */
-.card .tm { margin-left: auto; flex: none; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--red); }
-.card.ready .tm { color: var(--amber); } .card.closed .tm { color: var(--muted); font-size: 15px; font-weight: 600; }
-.card .st { font-size: 14px; color: var(--muted); margin-top: 2px; }
-.card .txt { font-size: 14px; margin-top: 6px; color: var(--text); white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-.card .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.card .top { display: flex; gap: 8px; align-items: center; }
+.card .kind { font-size: 17px; font-weight: 600; color: var(--strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .tm { margin-left: auto; flex: none; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 8px;
+  color: var(--red); background: var(--red-soft); }
+.card.ready .tm { color: var(--amber); background: var(--amber-soft); }
+.card.closed .tm { color: var(--muted); background: var(--chip); }
+.card .st { font-size: 15px; color: var(--muted); margin-top: 2px; }
+.card .txt { font-size: 15px; margin-top: 4px; color: var(--text); white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 13px; color: var(--muted); }
 .card .meta span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .card .meta svg.i { width: 15px; height: 15px; flex: none; }
-/* «Заезд машины» у механика -- внизу, под большим пальцем */
-.fab { position: fixed; z-index: 6; left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom)); max-width: 688px; margin: 0 auto;
-  border: 0; border-radius: 16px; background: var(--red); color: #fff; min-height: 58px; font-size: 18px; font-weight: 650; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 20px rgba(195,0,19,.32); }
-.fab svg.i { width: 22px; height: 22px; stroke-width: 2.4; }
-.fab:active { transform: scale(.98); filter: brightness(.95); }
+/* «Заезд машины» у механика -- в нижней панели, под большим пальцем */
+.dock { position: fixed; z-index: 6; left: 0; right: 0; bottom: 0; background: var(--bar); border-top: .5px solid var(--line);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+.fab { width: 100%; max-width: 688px; margin: 0 auto; border: 0; border-radius: 14px; background: var(--red); color: #fff; min-height: 50px;
+  font-size: 17px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.fab svg.i { width: 20px; height: 20px; stroke-width: 2.6; }
+.fab:active { opacity: .8; }
 main:has(.fab) ~ #toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
-.badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-.badge { font-size: 12px; border-radius: 6px; padding: 2px 8px; background: var(--chip); color: var(--muted); }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.badge { font-size: 12px; font-weight: 500; border-radius: 6px; padding: 2px 7px; background: var(--chip); color: var(--muted); }
 .badge.red { background: var(--red-soft); color: var(--red); } .badge.green { background: var(--green-soft); color: var(--green); }
 .badge.amber { background: var(--amber-soft); color: var(--amber); }
-.empty { color: var(--muted); text-align: center; padding: 20px; border: 1px dashed var(--line); border-radius: 14px; font-size: 14px; }
-/* нижнее меню администратора */
-#nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line);
+.empty { background: var(--card); color: var(--muted); border-radius: 10px; padding: 12px 16px; font-size: 15px; }
+/* нижнее меню администратора -- панель вкладок */
+#nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--bar); border-top: .5px solid var(--line);
   display: grid; grid-template-columns: repeat(4, 1fr); padding-bottom: env(safe-area-inset-bottom); }
 #nav[hidden] { display: none; }
-#nav button { position: relative; border: 0; background: none; min-height: 60px; padding: 8px 0 7px; display: grid; justify-items: center;
-  align-content: center; gap: 3px; font-size: 12px; color: var(--muted); cursor: pointer; }
-#nav button.on { color: var(--red); font-weight: 600; }
-#nav .n { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red);
+#nav button { position: relative; border: 0; background: none; min-height: 52px; padding: 6px 0 5px; display: grid; justify-items: center;
+  align-content: center; gap: 2px; font-size: 10px; font-weight: 500; color: var(--graphite); cursor: pointer; }
+#nav button svg.i { width: 25px; height: 25px; }
+#nav button.on { color: var(--red); }
+#nav .n { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red);
   color: #fff; font-size: 11px; line-height: 18px; font-weight: 600; }
 #nav .n.dim { background: var(--graphite); color: var(--on-graphite); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; min-height: 46px; padding: 10px 14px; cursor: pointer; font-size: 15px; }
-.btn:active { filter: brightness(.94); }
-.btn.red { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
-.btn.dark { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
-.btn.small { min-height: 38px; padding: 6px 12px; font-size: 14px; }
-.btn:disabled { opacity: .5; }
-.list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
-.list > div { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
-.list > div:last-child { border-bottom: 0; }
+/* кнопки: серая с красным текстом, залитая красная, «тонированная» */
+.btn { border: 0; background: var(--chip); color: var(--red); border-radius: 10px; min-height: 44px; padding: 10px 16px; cursor: pointer; font-size: 15px; font-weight: 500; }
+.btn:active { opacity: .7; }
+.btn.red { background: var(--red); color: #fff; font-weight: 600; }
+.btn.dark { background: var(--red-soft); color: var(--red); font-weight: 600; }
+.btn.small { min-height: 34px; padding: 6px 13px; font-size: 15px; border-radius: 17px; }
+.btn:disabled { opacity: .45; }
+.list { background: var(--card); border-radius: 10px; overflow: hidden; }
+.list > div { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 16px; min-height: 44px; flex-wrap: wrap; }
+.list > div + div::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+.list b { font-weight: 500; }
 .list .grow { flex: 1; min-width: 140px; }
 .off { opacity: .45; }
-/* форма */
+/* форма -- лист снизу с панелью «Отмена · заголовок · Сохранить» */
 #sheet { position: fixed; inset: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
 #sheet[hidden] { display: none; }
-#sheet:not([hidden]) { animation: fade .18s ease; }
-#sheet:not([hidden]) .panel { animation: sheetUp .24s cubic-bezier(.2,.8,.2,1); }
+#sheet:not([hidden]) { animation: fade .2s ease; }
+#sheet:not([hidden]) .panel { animation: sheetUp .3s cubic-bezier(.2,.8,.2,1); }
 @keyframes fade { from { background: transparent; } }
-@keyframes sheetUp { from { transform: translateY(40px); opacity: .4; } }
-@media (prefers-reduced-motion: reduce) { #sheet:not([hidden]), #sheet:not([hidden]) .panel { animation: none; } }
-.panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 100%; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 0 16px; }
-.panel .head { position: sticky; top: 0; background: var(--bg); padding: 12px 0 8px; display: flex; align-items: center; gap: 8px; z-index: 2; }
-.panel .head b { font-size: 19px; color: var(--strong); }
-.panel .head .iconbtn { margin-left: auto; }
-label.f { display: block; margin: 14px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-.inp { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--card); font-size: 16px; }
-textarea.inp { min-height: 74px; resize: vertical; }
-.inp:focus { outline: 2px solid var(--graphite); border-color: transparent; }
-.inp:disabled { background: var(--disabled); }
+@keyframes sheetUp { from { transform: translateY(60px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { #sheet:not([hidden]), #sheet:not([hidden]) .panel, #tpick, .tsheet { animation: none; } }
+.panel { background: var(--bg); width: 100%; max-width: 720px; max-height: calc(100% - 10px - env(safe-area-inset-top)); overflow-y: auto;
+  overscroll-behavior: contain; border-radius: 12px 12px 0 0; padding: 0 16px; }
+.panel .head { position: sticky; top: 0; z-index: 3; margin: 0 -16px; padding: 4px 8px; min-height: 56px; display: grid;
+  grid-template-columns: 1fr auto 1fr; align-items: center; gap: 4px; background: var(--bar); border-bottom: .5px solid var(--line); }
+.panel .head b { font-size: 17px; font-weight: 600; color: var(--strong); text-align: center; line-height: 1.2; min-width: 0; max-width: 56vw;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel .head b small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.nb { justify-self: start; border: 0; background: none; color: var(--red); font-size: 17px; padding: 10px 8px; cursor: pointer; white-space: nowrap; }
+.nb.r { justify-self: end; font-weight: 600; }
+.nb:active { opacity: .5; }
+label.f { display: block; margin: 22px 16px 7px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.inp { width: 100%; min-height: 44px; border: 0; border-radius: 10px; padding: 11px 16px; background: var(--card); font-size: 17px; color: var(--text); }
+.inp::placeholder { color: var(--muted2); }
+textarea.inp { min-height: 66px; resize: vertical; line-height: 1.35; }
+.inp:focus { outline: 0; }
+.inp:disabled { color: var(--muted); opacity: 1; }
+/* выбор: «таблетки»; одиночный выбор (вид работ, роль, участок) -- сегменты */
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { min-height: 44px; border: 1px solid var(--line); background: var(--card); border-radius: 22px; padding: 9px 16px; cursor: pointer; font-size: 15px; }
-.chip.on { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
+.chip { min-height: 36px; border: 0; background: var(--chip); border-radius: 18px; padding: 7px 14px; cursor: pointer; font-size: 15px; }
+.chip.on { background: var(--red); color: #fff; }
 .chip:disabled { opacity: .55; }
-.gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 8px; margin-top: 8px; max-height: 208px; overflow-y: auto; }
-.gars button { min-height: 48px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; }
-.gars button.busy { border-color: var(--red); color: var(--red); background: var(--red-soft); }
-.gars button.on { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
-.seg { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
-.seg button { border: 0; border-left: 1px solid var(--line2); background: none; min-height: 46px; font-size: 17px; font-weight: 600; cursor: pointer;
-  transition: background .15s, color .15s; }
-.seg button:first-child { border-left: 0; }
-.seg button.on { background: var(--graphite); color: var(--on-graphite); }
+#fKind, #nsRole, #seRole, #seSite { flex-wrap: nowrap; gap: 0; background: var(--chip); border-radius: 9px; padding: 2px; }
+#fKind .chip, #nsRole .chip, #seRole .chip, #seSite .chip { flex: 1; min-width: 0; min-height: 32px; border-radius: 7px; background: none; color: var(--text);
+  padding: 4px 1px; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#fKind .chip.on, #nsRole .chip.on, #seRole .chip.on, #seSite .chip.on { background: var(--seg-on); color: var(--text); font-weight: 600;
+  box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
+.gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin-top: 8px; max-height: 208px; overflow-y: auto; }
+.gars button { min-height: 44px; border: 0; background: var(--card); color: var(--text); border-radius: 10px; font-size: 17px; font-weight: 600; cursor: pointer; }
+.gars button:active { background: var(--press); }
+.gars button.busy { color: var(--red); background: var(--red-soft); }
+.gars button.on { background: var(--red); color: #fff; }
+.seg { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--chip); border-radius: 9px; padding: 2px; }
+.seg button { border: 0; background: none; border-radius: 7px; min-height: 32px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.seg button.on { background: var(--seg-on); font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
 .seg button:disabled { opacity: .55; }
+.seg.two { grid-template-columns: 1fr 1fr; }
+.seg.views { margin-top: 14px; }
+.seg.views button { min-height: 34px; font-size: 15px; }
 .timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
-.tmcq { display: flex; gap: 8px; margin-top: 8px; } .tmcq #fTmcQ { flex: 1; min-width: 0; } .tmcq #fTmcN { flex: 0 0 64px; text-align: center; }
-.wk { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.wk .chip { min-height: 40px; padding: 8px 12px; }
-.wk .chip.on::after { content: " ✕"; opacity: .7; }
+/* поле времени: кнопка со значением, выбор -- барабанами (#tpick) */
+.tval { text-align: left; cursor: pointer; color: var(--red); font-variant-numeric: tabular-nums; }
+.tval.nil { color: var(--muted); }
+.tval:disabled { color: var(--muted); cursor: default; }
+.tmcq { display: flex; gap: 8px; margin-top: 8px; } .tmcq #fTmcQ { flex: 1; min-width: 0; } .tmcq #fTmcN { flex: 0 0 64px; text-align: center; padding: 11px 6px; }
+.wk { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.wk .chip { min-height: 34px; padding: 6px 12px; }
+.wk .chip.on::after { content: "  ✕"; font-size: 12px; opacity: .8; }
 .wk .chip small { color: var(--muted); font-size: 12px; }
-.wkl { display: block; margin-top: 4px; padding: 8px 0; text-align: left; font-size: 14px; color: var(--strong); text-decoration: underline; }
+.wk .chip.on small { color: inherit; }
+.wkl { display: block; margin-top: 6px; padding: 8px 0; text-align: left; font-size: 15px; color: var(--red); text-decoration: none; }
 .tmcres { display: grid; gap: 6px; margin-top: 8px; max-height: 320px; overflow-y: auto; }
-.tmcres button { text-align: left; border: 1px solid var(--line); background: var(--card); color: var(--strong); border-radius: 10px;
-  padding: 10px 12px; min-height: 44px; font-size: 15px; cursor: pointer; }
+.tmcres button { text-align: left; border: 0; background: var(--card); color: var(--text); border-radius: 10px;
+  padding: 10px 14px; min-height: 44px; font-size: 15px; cursor: pointer; }
+.work .tmcres button { background: var(--chip); }
 .tmcres button:active { background: var(--press); }
-.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-top: 8px; }
-details.more { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 0 12px; }
-details.more summary { list-style: none; display: flex; align-items: baseline; gap: 8px; min-height: 48px; padding: 13px 0; cursor: pointer; font-weight: 600; color: var(--strong); }
+.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 10px 14px; font-size: 15px; margin-top: 8px; }
+details.more { margin-top: 22px; }
+details.more summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 11px 16px; cursor: pointer;
+  background: var(--card); border-radius: 10px; color: var(--text); }
 details.more summary::-webkit-details-marker { display: none; }
-details.more summary small { color: var(--muted); font-weight: 400; font-size: 13px; }
-details.more summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
-details.more[open] summary::after { content: "▴"; }
-details.more[open] { padding-bottom: 12px; }
-details.more label.f:first-of-type { margin-top: 0; }
-.actions { display: flex; gap: 8px; margin-top: 18px; } .actions .btn { flex: 1; min-height: 54px; font-size: 17px; }
-.actions.bar { position: sticky; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--line);
-  margin: 18px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+details.more summary small { color: var(--muted); font-size: 15px; }
+details.more summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid var(--muted2); border-bottom: 2px solid var(--muted2);
+  transform: rotate(45deg); margin-top: -4px; transition: transform .2s; }
+details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.actions { display: flex; gap: 10px; margin-top: 22px; } .actions .btn { flex: 1; min-height: 50px; font-size: 17px; border-radius: 14px; }
+.actions.bar { position: sticky; bottom: 0; z-index: 2; background: var(--bar); border-top: .5px solid var(--line);
+  margin: 22px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
 .panel > :last-child:not(.bar) { margin-bottom: calc(16px + env(safe-area-inset-bottom)); }
+.delrow { display: block; width: 100%; margin-top: 28px; border: 0; background: var(--card); color: var(--red); border-radius: 10px;
+  min-height: 44px; font-size: 17px; cursor: pointer; }
+.delrow:active { background: var(--press); }
 /* вход */
 .login { max-width: 420px; margin: 0 auto; padding: 24px 16px; text-align: center; }
 .login img { height: 40px; margin: 16px 0 6px; }
-.login h1 { font-size: 21px; margin: 6px 0 18px; color: var(--strong); }
-.names { display: grid; gap: 8px; text-align: left; margin-top: 12px; }
-.names button { border: 1px solid var(--line); background: var(--card); border-radius: 12px; min-height: 52px; padding: 13px 14px; font-size: 17px; cursor: pointer;
-  display: flex; justify-content: space-between; }
-.names button small { color: var(--muted); }
-.dots { display: flex; justify-content: center; gap: 16px; margin: 20px 0; }
-.dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--strong); }
+.login h1 { font-size: 28px; font-weight: 700; letter-spacing: .01em; margin: 8px 0 18px; color: var(--strong); }
+.names { background: var(--card); border-radius: 10px; overflow: hidden; text-align: left; margin-top: 16px; }
+.names button { position: relative; width: 100%; border: 0; background: none; min-height: 44px; padding: 11px 16px; font-size: 17px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center; color: var(--text); }
+.names button + button::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+.names button:active { background: var(--press); }
+.names button small { color: var(--muted2); font-size: 22px; line-height: 1; }
+.dots { display: flex; justify-content: center; gap: 22px; margin: 22px 0 26px; }
+.dots i { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--strong); }
 .dots i.on { background: var(--strong); }
-.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
-.pad button { border: 1px solid var(--line); background: var(--card); border-radius: 16px; min-height: 62px; font-size: 25px; cursor: pointer; }
-.pad button:active { background: var(--press); }
+.pad { display: grid; grid-template-columns: repeat(3, 76px); justify-content: center; gap: 16px 26px; margin: 0 auto; }
+.pad button { width: 76px; height: 76px; border: 0; border-radius: 50%; background: var(--chip); color: var(--text); font-size: 32px; font-weight: 400; cursor: pointer; }
+.pad button:active { background: var(--fill2); }
+.pad button[data-act="other"], .pad button[data-act="back"] { background: none; color: var(--red); font-size: 17px; }
+.pad button[data-act="back"] { font-size: 26px; }
 .err { color: var(--red); min-height: 22px; margin-top: 10px; font-size: 15px; }
 .login .sub { color: var(--muted); font-size: 15px; margin: -8px 0 6px; }
 .credit { text-align: center; color: var(--muted); font-size: 12px; margin: 28px 0 8px; opacity: .8; }
-.link { border: 0; background: none; color: var(--muted); font-size: 15px; padding: 10px; margin-top: 6px; cursor: pointer;
-  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
-.done { width: 72px; height: 72px; margin: 28px auto 8px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--green-soft); color: var(--green); animation: pop .45s cubic-bezier(.2,.8,.2,1.2) both; }
-.done svg.i { width: 36px; height: 36px; stroke-width: 2.4; }
-@keyframes pop { from { transform: scale(.6); opacity: 0; } }
+.link { border: 0; background: none; color: var(--red); font-size: 15px; padding: 10px; margin-top: 6px; cursor: pointer; text-decoration: none; }
 /* заставка при запуске: логотип проявляется, под ним бежит тонкая красная полоса */
 #splash { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg);
   transition: opacity .4s ease, visibility .4s; }
 #splash.out { opacity: 0; visibility: hidden; pointer-events: none; }
 #splash .sp { display: grid; justify-items: center; gap: 20px; animation: spIn .7s cubic-bezier(.2,.7,.2,1) both; }
 #splash img { height: 34px; }
-#splash .bar { position: relative; width: 132px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+#splash .bar { position: relative; width: 132px; height: 3px; border-radius: 2px; background: var(--fill2); overflow: hidden; }
 #splash .bar i { position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: 2px; background: var(--red);
   animation: spRun 1.1s cubic-bezier(.65,0,.35,1) infinite; }
 #splash .t { font-size: 12px; letter-spacing: .32em; padding-left: .32em; text-transform: uppercase; color: var(--muted); }
 @keyframes spIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 @keyframes spRun { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-@media (prefers-reduced-motion: reduce) { #splash .sp, #splash .bar i, .done { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #splash .sp, #splash .bar i { animation: none; } }
 #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
   display: grid; gap: 6px; width: min(92vw, 520px); pointer-events: none; }
 #nav:not([hidden]) ~ #toast { bottom: calc(74px + env(safe-area-inset-bottom)); }
 #sheet:not([hidden]) ~ #toast { bottom: auto; top: calc(10px + env(safe-area-inset-top)); }   /* не закрывать кнопки формы */
-#toast div { background: #333; color: #fff; border-radius: 12px; padding: 11px 14px; font-size: 15px; box-shadow: 0 4px 14px rgba(0,0,0,.3);
-  border-left: 5px solid var(--red); animation: up .25s ease; }
-#toast div.bad { background: #C30013; border-left-color: #7a0010; }
+#toast div { background: var(--toast); color: #fff; border-radius: 14px; padding: 12px 16px; font-size: 15px; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); animation: up .25s ease; }
+#toast div.bad { background: #C30013; }
 @keyframes up { from { transform: translateY(12px); opacity: 0; } }
-.hint { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 14px; margin-top: 12px;
+.hint { background: var(--card); border-radius: 10px; padding: 10px 10px 10px 16px; font-size: 15px; margin-top: 12px;
   display: flex; gap: 8px; align-items: center; }
 .hint .grow { flex: 1; }
 /* фото к записи: лента миниатюр с кнопкой «Фото», просмотр на весь экран */
 .photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 6px; padding-bottom: 2px; }
-.photos img, .photos .add { flex: 0 0 76px; width: 76px; height: 76px; border-radius: 10px; object-fit: cover; background: var(--chip); border: 1px solid var(--line); }
-.photos .add { position: relative; display: grid; place-items: center; align-content: center; gap: 2px; font-size: 13px; color: var(--strong); cursor: pointer; text-align: center; }
+.photos img, .photos .add { flex: 0 0 76px; width: 76px; height: 76px; border-radius: 10px; object-fit: cover; background: var(--card); }
+.photos .add { position: relative; display: grid; place-items: center; align-content: center; gap: 2px; font-size: 13px; color: var(--red); cursor: pointer; text-align: center; }
 .photos .add b { font-size: 24px; line-height: 1; }
 .photos .add input { position: absolute; inset: 0; opacity: 0; width: 100%; }
-.pnote { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.pnote { font-size: 13px; color: var(--muted); margin: 8px 16px 0; }
 #pview { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.94); display: grid; place-items: center; }
 #pview[hidden] { display: none; }
 #pview img { max-width: 100vw; max-height: 84vh; object-fit: contain; }
 #pview .bar { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 10px; color: #ccc; font-size: 13px; }
-.online { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.online { font-size: 13px; color: var(--muted); margin: 10px 16px 0; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 5px; }
 /* выполненные работы -- как таблица тех. отчёта: описание, начало/окончание, ФИО */
-.sec { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 0; }
-details.more .sec:first-of-type { margin-top: 0; }
-.sec h3 { margin: 0; font-size: 17px; color: var(--strong); }
+.sec { display: flex; align-items: baseline; gap: 8px; margin: 22px 16px 7px; }
+.sec h3 { margin: 0; font-size: 13px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
 .sec .rows { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sec .rows.full { color: var(--amber); font-weight: 600; }
-.work { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--graphite); border-radius: 14px; padding: 4px 12px 12px; margin-top: 10px; }
+.work { background: var(--card); border-radius: 10px; padding: 4px 16px 14px; margin-top: 10px; }
 .work .wh { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-.work .wh b { font-size: 15px; color: var(--strong); }
-.work .wh .iconbtn { margin-left: auto; width: 40px; height: 40px; font-size: 18px; color: var(--muted); }
-.work label.f { margin-top: 10px; }
+.work .wh b { font-size: 15px; font-weight: 600; color: var(--strong); }
+.work .wh .iconbtn { margin: 0 -10px 0 auto; width: 40px; height: 40px; font-size: 17px; color: var(--muted); }
+.work label.f { margin: 14px 0 6px; }
+.work .inp { background: var(--chip); }
 .work textarea.inp { min-height: 52px; }
-.tmw { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tmw .cell { display: grid; gap: 6px; min-width: 0; }
-.tmw .cap { font-size: 12px; color: var(--muted); }
-.tmw input { text-align: center; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; min-height: 52px; }
-.tmw .btn { min-height: 42px; font-size: 14px; padding: 8px 6px; }
-.tot { margin-top: 8px; font-size: 14px; color: var(--muted); }
-.tot b { color: var(--strong); font-variant-numeric: tabular-nums; }
-.addw { width: 100%; margin-top: 10px; border: 1px dashed var(--line); background: none; min-height: 50px; border-radius: 14px; font-size: 16px; color: var(--strong); cursor: pointer; }
+.work .pnote { margin-left: 0; }
+.tmw { display: grid; gap: 8px; }
+.tmw .cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tmw .cap { flex: 1; min-width: 0; font-size: 15px; }
+.tmw .tval { flex: none; width: 86px; min-height: 40px; padding: 6px; text-align: center; font-size: 20px; font-weight: 600; }
+.tmw .btn { min-height: 34px; padding: 6px 12px; font-size: 15px; border-radius: 17px; }
+.tot { margin-top: 10px; font-size: 15px; color: var(--muted); }
+.tot b { color: var(--strong); font-weight: 600; font-variant-numeric: tabular-nums; }
+.addw { width: 100%; margin-top: 10px; border: 0; background: var(--card); min-height: 44px; border-radius: 10px; padding: 0 16px; text-align: left;
+  font-size: 17px; color: var(--red); cursor: pointer; }
+.addw:active { background: var(--press); }
+/* барабаны выбора даты и времени -- как в iOS */
+#tpick { position: fixed; inset: 0; z-index: 25; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; animation: fade .2s; }
+#tpick[hidden] { display: none; }
+.tsheet { width: 100%; max-width: 520px; background: var(--card); border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom);
+  animation: tUp .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes tUp { from { transform: translateY(100%); } }
+.tbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 8px; border-bottom: .5px solid var(--line); }
+.tbar b { font-weight: 600; text-align: center; }
+.wheels { position: relative; display: flex; justify-content: center; padding: 8px 12px 16px; height: 240px; }
+.wheels::before { content: ""; position: absolute; left: 12px; right: 12px; top: 98px; height: 36px; background: var(--chip); border-radius: 8px; pointer-events: none; }
+.wheel { position: relative; height: 216px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; flex: 1; max-width: 110px;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.wheel.day { max-width: 170px; flex: 1.6; }
+.wheel::-webkit-scrollbar { display: none; }
+.wheel .wsp { height: 90px; }
+.wheel .it { height: 36px; line-height: 36px; text-align: center; font-size: 22px; scroll-snap-align: center; font-variant-numeric: tabular-nums;
+  color: var(--muted); cursor: pointer; white-space: nowrap; }
+.wheel.day .it { font-size: 19px; }
+.wheel .it.sel { color: var(--text); }
+.colon { align-self: center; font-size: 22px; font-weight: 600; margin-top: -8px; }
+.tclear { display: block; width: calc(100% - 32px); margin: 0 16px 12px; border: 0; background: var(--chip); color: var(--red); border-radius: 12px;
+  min-height: 44px; font-size: 17px; cursor: pointer; }
+.tclear[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -291,6 +356,8 @@ details.more .sec:first-of-type { margin-top: 0; }
 <div id="splash" aria-hidden="true"><div class="sp"><img class="logo" src="logo.png" alt=""><div class="bar"><i></i></div><div class="t">Ремзона</div></div></div>
 <main id="app"></main>
 <div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<div id="tpick" hidden><div class="tsheet"><div class="tbar"><button class="nb" data-act="tpcancel">Отмена</button><b id="tpTitle"></b><button class="nb r" data-act="tpdone">Готово</button></div>
+  <div class="wheels" id="wheels"></div><button class="tclear" id="tpClear" data-act="tpclear" hidden>Очистить</button></div></div>
 <div id="pview" hidden></div>
 <nav id="nav" hidden></nav>
 <div id="toast"></div>
@@ -308,6 +375,7 @@ const SITES = ["Благодатный", "Восточный"], EXCEL_SITE = "Б
 const CREDIT = `<div class="credit">Разработчик — Умаров Р.К.</div>`;   // подпись создателя (решение пользователя 31.10.2026)
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
+const LONG_MS = 24 * 3600000;                   // долгострой (01.11.2026, решение пользователя): на площадке дольше суток -- в отдельном окне
 
 // запрос к серверу -- не дольше 15 с: при плохой связи не висим (ошибка «нет связи», очередь повторит)
 const fetchT = (url, opt = {}) => {
@@ -323,7 +391,7 @@ const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); re
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const S = {
   me: null, machines: load("rz_machines", []), workers: load("rz_workers", []), jobs: new Map(load("rz_jobs", []).map((j) => [j.id, j])), staff: [],
-  queue: load("rz_queue", []), tab: "feed", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: null,
+  queue: load("rz_queue", []), tab: "feed", view: "yard", seen: load("rz_seen", 0), rt: "", channel: null, edit: null, flushing: null,
   photos: new Map(), purl: new Map(), purlAt: 0, upl: "", pres: null, online: new Set(),   // фото по записям; кто сейчас в приложении
 };
 const $ = (s) => document.querySelector(s);
@@ -412,7 +480,7 @@ function applyTheme() {
   if (t === "auto") delete r.dataset.theme; else r.dataset.theme = t;
   const dark = isDark();
   $("#themeBtn").innerHTML = svg(dark ? ICON.sun : ICON.moon); $("#themeBtn").title = dark ? "Светлая тема" : "Тёмная тема";
-  document.querySelector('meta[name="theme-color"]').content = dark ? "#1E1E1E" : "#FFFFFF";
+  document.querySelector('meta[name="theme-color"]').content = dark ? "#161616" : "#F9F9F9";
 }
 darkMQ.addEventListener?.("change", applyTheme);
 
@@ -742,7 +810,7 @@ function card(j, opts = {}) {
     ${txt ? `<div class="txt">${esc(txt)}</div>` : ""}${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
     ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
-const list = (xs, opts, empty) => (xs.length ? xs.map((j) => card(j, opts)).join("") : `<div class="empty">${empty}</div>`);
+const list = (xs, opts, empty) => (xs.length ? `<div class="group">${xs.map((j) => card(j, opts)).join("")}</div>` : `<div class="empty">${empty}</div>`);
 function installHint() {
   if (load("rz_hint_off", false) || matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "";
   const ios = /iphone|ipad/i.test(navigator.userAgent);
@@ -756,15 +824,21 @@ function render() {
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
   const sw = [1, 2].map((n) => `<button class="${sh.n === n ? "on" : ""}" data-act="shift" data-v="${n}">${n === 1 ? "Ночь" : "День"}</button>`).join("");
   const head = `<div class="shift"><span>${dm(sh.date)} · смена ${sh.n} <span class="sw">${sw}</span> <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
+  // площадка / долгострои: переключатель над списком, редактирование -- та же карточка записи
+  const isLong = (j) => Date.now() - new Date(j.started_at) >= LONG_MS;
+  const yard = openJ.filter((j) => !isLong(j)), longJ = openJ.filter(isLong);
+  const views = `<div class="seg two views">${[["yard", "Площадка", yard.length], ["long", "Долгострои", longJ.length]].map(([k, t, n]) =>
+    `<button class="${S.view === k ? "on" : ""}" data-act="view" data-v="${k}">${t} · ${n}</button>`).join("")}</div>`;
+  const yardH = S.view === "long" ? `<h2>Стоят больше суток <span class="n">${longJ.length}</span></h2>${list(longJ, {}, "Долгостроев нет")}`
+    : `<h2>На площадке <span class="n">${yard.length}</span></h2>${list(yard, {}, "Сейчас на площадке никого")}`;
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
     // выезды смены -- все по участку: ремонт могли начать и закрыть разные механики
     const mine = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start)
       .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
-    h = `${head}<button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button>${installHint()}
-      <h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}
-      <h2>Выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`;
+    h = `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
+      ${views}${yardH}${S.view === "long" ? "" : `<h2>Выезды за смену <span class="n">${mine.length}</span></h2>${list(mine, {}, "Пока нет")}`}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
@@ -782,7 +856,7 @@ function render() {
           return on.length ? `<div class="online"><span class="dot"></span>В приложении: ${on.map((s) => esc(s.name)).join(", ")}</div>` : ""; })()}
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
-      h += `${head}<h2>На площадке <span class="n">${openJ.length}</span></h2>${list(openJ, {}, "Сейчас на площадке никого")}`;
+      h += `${head}${views}${yardH}`;
     } else if (S.tab === "staff") {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
       // участок: администратор видит людей своего участка, владелец -- ещё и другого (отдельным списком)
@@ -858,10 +932,11 @@ function openJob(id) {
   const readySec = j ? `<label class="f">Готова к выезду — ждёт не по нашей вине</label>
     <div class="chips" id="fWait">${[...WAITS, "Другое"].map((w) => `<button class="chip ${w === S.edit.wait ? "on" : ""}" data-act="wait" data-v="${w}" ${dis}>${w}</button>`).join("")}</div>
     <input class="inp" id="fWaitOther" style="margin-top:8px" placeholder="Чего ждёт машина" value="${other ? esc(wr) : ""}" ${dis} ${S.edit.wait === "Другое" ? "" : "hidden"}>
-    <div class="timebox" style="margin-top:8px"><input class="inp" type="datetime-local" id="fReady" value="${toInput(j.ready_at)}" ${dis}>
+    <div class="timebox" style="margin-top:8px"><input type="hidden" id="fReady" value="${toInput(j.ready_at)}">${tBtn("fReady", "Готова с", dis)}
       <button class="btn" data-act="unready" ${dis}>Не ждёт</button></div>` : "";
-  $("#panel").innerHTML = `<div class="head"><b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}</b>
-      ${j ? `<span class="badge">${esc(j.mechanic_name || "")}</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
+  $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="close">${can ? "Отмена" : "Закрыть"}</button>
+      <b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}${j ? `<small>${esc(j.mechanic_name || "")}</small>` : ""}</b>
+      ${j && can ? `<button class="nb r" data-act="savejob">Сохранить</button>` : "<span></span>"}</div>
     ${can ? "" : `<div class="warn">Запись другого участка — только просмотр.</div>`}
     ${!j ? "" : j.id.startsWith("q:") ? `<div class="pnote">📷 Фото — когда запись отправится на сервер</div>`
       : `<label class="f">Фото</label><div class="photos" id="fPhotos"></div>`}
@@ -872,19 +947,20 @@ function openJob(id) {
     <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <div class="chips" id="toChips" style="margin-top:6px"></div>
     <label class="f">Время заезда</label>
-    <div class="timebox"><input class="inp" type="datetime-local" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}" ${dis}>
+    <div class="timebox"><input type="hidden" id="fStart" value="${toInput(j?.started_at || new Date().toISOString())}">${tBtn("fStart", "Время заезда", dis)}
       <button class="btn" data-act="now" data-for="fStart" ${dis}>Сейчас</button></div>
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
     ${j ? "" : `<div class="pnote">📷 Фото можно добавить сразу после «Отметить заезд» — откройте запись</div>`}
     ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>работы, м/ч, ТМЦ</small></summary>${more}</details>`}
     ${readySec}
     ${j ? `<label class="f">Время выезда</label>
-      <div class="timebox"><input class="inp" type="datetime-local" id="fEnd" value="${toInput(j.ended_at)}" ${dis}>
+      <div class="timebox"><input type="hidden" id="fEnd" value="${toInput(j.ended_at)}">${tBtn("fEnd", "Время выезда", dis)}
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
-    ${j && isAdmin() ? `<div class="actions"><button class="btn small" data-act="deljob">Удалить запись</button></div>` : ""}
-    ${can ? `<div class="actions bar">${j ? `${!j.ended_at ? `<button class="btn dark" data-act="exit">Выехала сейчас</button>` : ""}<button class="btn red" data-act="savejob">Сохранить</button>`
+    ${j && isAdmin() ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
+    ${can ? `<div class="actions bar">${j ? `<button class="btn ${j.ended_at ? "red" : ""}" data-act="savejob">Сохранить</button>${!j.ended_at ? `<button class="btn red" data-act="exit">Выехала сейчас</button>` : ""}`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
+  ["fStart", "fReady", "fEnd"].forEach(tShow);
   drawGars(); drawTo(); drawSteps();
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
@@ -918,6 +994,10 @@ function drawTo() {
 // jobs.steps -- для тех. отчёта; work (описания построчно), workers, crew собираются из них -- книга ввода не меняется.
 // Старая запись без steps -- одна работа из work/workers без времени.
 const ST_ROWS = 10, ST_CREW = 5;
+// представители завода (01.11.2026, решение пользователя): работу делали представители -- только эта отметка, без фамилий
+// и без числа людей (выбор фамилии её снимает и наоборот); в бланке -- одна строка ФИО «Представители завода», количество пусто
+const REP = "Представители завода";
+const people = (who) => who.filter((n) => n !== REP);
 // = Шаблоны\_служебное\База\общая\Работы.txt (список «Описание работ» тех. отчёта); обновить -- python tools\works_list.py
 const WORKS = /*WORKS*/["Диагностика гидравлической системы", "Диагностика электрооборудования", "Диагностика с помощью сканера", "Выезд в карьер. Диагностика неисправности", "Перегон самосвала на ремонтную площадку", "Пробный выезд", "Замена масляных фильтров ДВС", "Замена топливных фильтров", "Замена фильтров системы охлаждения", "Доливка масла", "Доливка охлаждающей жидкости", "Заправка системы кондиционирования", "Замена РВД", "Замена уплотнения", "Замена приводного ремня", "Замена предохранителя", "Замена реле", "Замена датчика", "Замена щёток стеклоочистителя", "Протяжка резьбовых соединений", "Протяжка РВД", "Удаление залома болта. Установка нового болта", "Сварочные работы", "Демонтаж", "Монтаж", "Ремонт электропроводки", "Чистка контактов разъёмов", "Настройка параметров системы АЦСС", "Развоздушивание топливной системы", "Сброс давления гидравлической системы", "Переуплотнение соединения", "Проверка на утечку", "Натяжка продольных тяг", "Подкачка шин", "Уборка рабочего места", "Слив ОЖ", "Устранение заломов болтов соединения холодной и горячей частей ТКР", "Диагностика АЦСС", "Закачка ОЖ", "Обвязка топливного бака", "Диагностика", "Диагностика электропроводки", "Диагностика ДВС", "Ремонт трапеции привода стеклоочистителя", "Замена сальника вала привода зарядного генератора", "Ремонт крепления трапеции к эл.мотору привода стеклоочистителя", "Регулировка трапеции привода стеклоочистителя", "Диагностика эл.проводки", "Продолжение диагностики эл.проводки", "Подготовка к монтажу", "Монтаж водяного насоса", "Удаление заломов с ПЛ ТКР", "Монтаж выпускных коллекторов", "Замена уплотнения на трубке слива масла с ПЛ ТКР", "Ремонт фишки датчика скорости переднего правого колеса (демонтаж косы, пайка контактов, монтаж косы)", "Очистка фишек CAN-шины", "Подготовка к удалению заломов (демонтаж выпускных коллекторов)", "Удаление заломов выпускного коллектора 12 цилиндра", "Подготовка к ремонту", "Устранение заломов с ЗП ТКР", "Монтаж ТКР", "Запуск, осмотр на наличие утечек", "Очистка пинов плат управления", "Выезд специалиста в карьер для диагностики АС в процессе эксплуатации", "Произвели замену РВД", "Зарядка АКБ", "Подготовка к монтажу ГБЦ 12 цилиндра", "Монтаж ГБЦ 12 цилиндра", "Выезд в карьер", "Монтаж выпускного коллектора", "Диагностика термостатов", "Запуск ДВС", "Диагностика продольных тяг", "Отказ", "Протяжка уголка масляного клапана", "Ремонт клавиши включения эл.мотора", "Ремонт хомута", "Ремонт эл.мотора привода стеклоочистителя", "Диагностика ДВС с подключением ПК", "Переуплотнение и протяжка резьбовых соединений манометров давления", "Подготовка к усилению крепления топливного бака", "Демонтаж крепления топливного бака", "Подготовка к модернизации", "Модернизация крепления топливного бака", "Продолжение модернизации крепления топливного бака", "Подготовка к сварке крепления противотуманной фары", "Подключение АС, запуск, осмотр на наличие утечек", "Монтаж модернизированного крепления топливного бака", "Сварочные работы козырька грузовой платформы", "Замена пыльников рулевых гидроцилиндров", "Демонтаж ЗП ТКР", "Диагностика стеклоочистителя", "Удаление заломов с ЗП ТКР", "Монтаж ЗП ТКР", "Ремонт клавиши сиденья оператора", "Замена сальника насоса подъема", "Демонтаж сальника", "Демонтаж топливных трубок", "Замена уплотнений", "Монтаж топливных трубок", "Демонтаж форсунки", "Демонтаж крышки клапанов", "Монтаж форсунки", "Протяжка топливного бака", "Диагностика бортового монитора", "Замена топливной форсунки", "Демонтаж топливной форсунки", "Замена термостатов", "Демонтаж ГБЦ 3 цилиндра", "Демонтаж РВД", "Монтаж РВД", "Модернизация плиты крепления насосов", "Продолжение закачки ОЖ", "Осмотр ДВС", "Демонтаж масляных фильтров", "Диагностика эл.мотора привода жалюзи", "Замена фильтра сепаратора", "Замена фильтра сепаратора и фильтра тормозной линии", "Демонтаж датчика", "Очистка датчика", "Монтаж датчика", "Диагностика топливной системы", "Чистка коллектора УВТР", "Чистка датчика скорости", "Диагностика рулевой колонки", "Демонтаж рулевой колонки", "Демонтаж рулевого колеса", "Монтаж рулевой колонки", "Ремонт эл.проводки подрулевого переключателя", "Зарядка АКБ, отогрев ДВС", "Осмотр рулевой колонки", "Диагностик неисправности", "Ремонт фишки датчика скорости", "Подвязка эл.проводки датчика скорости", "Монтаж пальца", "Установка плашки крепления пальца", "Протяжка болтов крепления топливного бака", "Демонтаж горячей части ТКР", "Продолжение перестановки теплообменника", "Демонтаж рулевого насоса", "Осмотр стыка насосов", "Монтаж рулевого насоса", "Пусконаладочные работы", "Удаление заломов с ПЛ и ПП ТКР", "Замена противотуманной фары", "Замена уплотнений сливных трубок задних ТКР", "Подключение теплообменника", "Диагностика неисправности", "Диагностика эл.мотора", "Перестановка эл.мотора", "Продолжение диагностики АЦСС", "Монтаж масляных фильтров", "Подготовка к аварийной разгрузке", "Аварийная разгрузка АС", "Протяжка уголка", "Осмотр соединения ТГ и ДВС", "Дефектовка усилителя", "Спуск воздуха с АЦСС", "Ремонт насоса АЦСС", "Демонтаж водяного насоса", "Зачистка посадочного места", "Демонтаж защиты ремня привода зарядного генератора", "Демонтаж шкива", "Замена РВД смазки", "Очистка контактов фишки", "Укладка кабеля УСПВЛ", "Проверка УСПВЛ", "Демонтаж ТНВД", "Перекомплектовка ТНВД", "Монтаж ТНВД", "Обвязка ТНВД", "Диагностика GE", "Осмотр оптоволокна", "Демонтаж хомута", "Очистка контактов фишки датчика давления масла в топливном насосе"]/*/WORKS*/;
 const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
@@ -947,8 +1027,8 @@ function drawSteps() {
       <input class="inp" data-sf="q" style="margin-top:6px" placeholder="Найти в списке тех. отчёта: слова" autocomplete="off"><div class="sug"></div>
       <label class="f">Время воздействия</label>
       <div class="tmw">
-        <div class="cell"><span class="cap">Начало работ</span><input class="inp" type="time" data-sf="from" value="${w.from}"><button class="btn" data-act="stfrom">Начали сейчас</button></div>
-        <div class="cell"><span class="cap">Окончание работ</span><input class="inp" type="time" data-sf="to" value="${w.to}"><button class="btn" data-act="stto">Закончили сейчас</button></div>
+        <div class="cell"><span class="cap">Начало работ</span><button class="inp tval ${w.from ? "" : "nil"}" data-act="tpick" data-sf="from">${w.from || "—"}</button><button class="btn" data-act="stfrom">Сейчас</button></div>
+        <div class="cell"><span class="cap">Окончание работ</span><button class="inp tval ${w.to ? "" : "nil"}" data-act="tpick" data-sf="to">${w.to || "—"}</button><button class="btn" data-act="stto">Сейчас</button></div>
       </div>
       <div class="tot"></div>
       <div class="who"></div>
@@ -981,11 +1061,11 @@ function drawStWho(i) {
     more = hits.map((x) => chip(x.name, false, `${esc(x.name)}${x.grp === "слесарь" ? "" : ` <small>${esc(x.grp)}</small>`}`)).join("")
       + (typed && !known && !w.who.includes(typed) ? chip(typed, false, `＋ ${esc(typed)} <small>нет в списке</small>`) : "")
       + (!hits.length && !typed ? `<div class="pnote">Не найдено. Чтобы вписать нового — Фамилия И.О.</div>` : "");
-  } else more = load("rz_wk_recent", []).filter((n) => !w.who.includes(n)).slice(0, 8).map((n) => chip(n, false)).join("");
+  } else more = load("rz_wk_recent", []).filter((n) => n !== REP && !w.who.includes(n)).slice(0, 8).map((n) => chip(n, false)).join("");
   const prev = i ? e.steps[i - 1].who : load("rz_wk_last", []), old = !i && !w.who.length && e.j?.crew;
-  const same = !prev.length || prev.every((n) => w.who.includes(n));
-  box.querySelector(".who").innerHTML = `<label class="f">ФИО специалиста${w.who.length ? ` · ${w.who.length} чел.` : old ? ` · указано ${e.j.crew} чел. без фамилий` : ""}</label>
-    <div class="wk">${w.who.map((n) => chip(n, true)).join("")}${more}</div>
+  const same = !prev.length || prev.every((n) => w.who.includes(n)), np = people(w.who).length;
+  box.querySelector(".who").innerHTML = `<label class="f">ФИО специалиста${np ? ` · ${np} чел.` : w.who.includes(REP) ? "" : old ? ` · указано ${e.j.crew} чел. без фамилий` : ""}</label>
+    <div class="wk">${people(w.who).map((n) => chip(n, true)).join("")}${chip(REP, w.who.includes(REP))}${more}</div>
     ${same ? "" : `<button class="link wkl" data-act="stsame">${i ? `Те же, что в работе ${i}` : "Как в прошлый раз"}: ${esc(prev.join(", "))}</button>`}`;
 }
 function drawStSug(i) {
@@ -1093,6 +1173,60 @@ async function delPhoto(id) {
   if (error) return toast("Не удалось удалить: " + (netErr(error) ? "нет связи" : error.message), true);
   dropPhoto(id); $("#pview").hidden = true; drawPhotos(); render();
 }
+// ---------- выбор времени барабанами (01.11.2026, макет «Стиль iPhone»): одинаково на iPhone, Android и ПК ----------
+// заезд / готова / выезд -- день + часы + минуты, значение в скрытом поле (как прежде в datetime-local); работы -- ЧЧ:ММ
+const DAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"], MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const midnight = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const dayName = (d) => { const k = Math.round((midnight(d) - midnight(new Date())) / 864e5);
+  return k === 0 ? "Сегодня" : k === -1 ? "Вчера" : k === 1 ? "Завтра" : `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
+const tBtn = (id, title, dis) => `<button class="inp tval" data-act="tpick" data-for="${id}" data-t="${title}" ${dis}></button>`;
+function tShow(id) {
+  const b = document.querySelector(`.tval[data-for="${id}"]`); if (!b) return;
+  const v = $("#" + id).value, d = v && new Date(v);
+  b.textContent = v ? `${dayName(d)}, ${hm(d)}` : id === "fEnd" ? "не выехала" : "—"; b.classList.toggle("nil", !v);
+}
+function setStTime(i, f, v) {
+  S.edit.steps[i][f] = v;
+  const b = stBox(i).querySelector(`.tval[data-sf="${f}"]`); b.textContent = v || "—"; b.classList.toggle("nil", !v);
+  drawStTot(i);
+}
+let TP = null;
+const WH = 36;   // высота строки барабана, px (= .wheel .it)
+function wheel(items, sel, cls = "") {
+  const el = document.createElement("div"); el.className = "wheel " + cls;
+  el.innerHTML = `<div class="wsp"></div>${items.map((t, i) => `<div class="it" data-i="${i}">${t}</div>`).join("")}<div class="wsp"></div>`;
+  const mark = () => { const i = Math.round(el.scrollTop / WH); el.querySelectorAll(".it").forEach((x, k) => x.classList.toggle("sel", k === i)); };
+  el.addEventListener("scroll", () => requestAnimationFrame(mark));
+  el.addEventListener("click", (e) => { const it = e.target.closest(".it"); if (it) el.scrollTo({ top: +it.dataset.i * WH, behavior: "smooth" }); });
+  el.init = () => { el.scrollTop = sel * WH; mark(); };   // после показа листа: скрытому прокрутку не задать
+  return el;
+}
+function openTp(t) {
+  const box = $("#wheels"), H = Array.from({ length: 24 }, (_, k) => pad2(k)), M = Array.from({ length: 60 }, (_, k) => pad2(k));
+  const colon = () => Object.assign(document.createElement("div"), { className: "colon", textContent: ":" });
+  box.innerHTML = "";
+  if (t.dataset.sf) {
+    const i = +t.closest(".work").dataset.i, f = t.dataset.sf, v = S.edit.steps[i][f], cur = isHm(v) ? v : hhmm();
+    TP = { i, f }; $("#tpTitle").textContent = f === "from" ? "Начало работ" : "Окончание работ"; $("#tpClear").hidden = !v;
+    box.append(wheel(H, +cur.slice(0, 2)), colon(), wheel(M, +cur.slice(3)));
+  } else {
+    // дни: неделя назад (или с дня значения, если раньше) … завтра
+    const id = t.dataset.for, v = $("#" + id).value, cur = v ? new Date(v) : new Date();
+    const ago = Math.round((midnight(new Date()) - midnight(cur)) / 864e5), back = Math.max(7, ago);
+    const days = Array.from({ length: back + 2 }, (_, k) => { const d = midnight(new Date()); d.setDate(d.getDate() - back + k); return d; });
+    TP = { id, days }; $("#tpTitle").textContent = t.dataset.t; $("#tpClear").hidden = !(id === "fEnd" && v);
+    box.append(wheel(days.map(dayName), Math.min(days.length - 1, Math.max(0, back - ago)), "day"), wheel(H, cur.getHours()), colon(), wheel(M, cur.getMinutes()));
+  }
+  $("#tpick").hidden = false;
+  box.querySelectorAll(".wheel").forEach((w) => w.init());
+}
+function doneTp() {
+  const ws = [...$("#wheels").querySelectorAll(".wheel")].map((w) => Math.min(w.querySelectorAll(".it").length - 1, Math.max(0, Math.round(w.scrollTop / WH))));
+  if (TP.f) setStTime(TP.i, TP.f, `${pad2(ws[0])}:${pad2(ws[1])}`);
+  else { const d = TP.days[ws[0]]; $("#" + TP.id).value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(ws[1])}:${pad2(ws[2])}`; tShow(TP.id); }
+  closeTp();
+}
+function closeTp() { $("#tpick").hidden = true; TP = null; }
 function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
 function saveJob(exitNow) {
   const e = S.edit, j = e.j;
@@ -1115,16 +1249,15 @@ function saveJob(exitNow) {
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
   // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
-  // пустые работы не сохраняем; в «Сделано» книги -- работы построчно (переносы внутри описания бланк сведёт через «; »)
+  // пустые работы не сохраняем; описание можно не заполнять (решение пользователя 01.11.2026) -- в тех. отчёте строка с временем и ФИО;
+  // в «Сделано» книги -- описания построчно (переносы внутри описания бланк сведёт через «; »)
   const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who] }))
     .filter((w) => w.t || w.from || w.to || w.who.length);
-  const nt = steps.findIndex((w) => !w.t);
-  if (nt >= 0) return toast(`Работа ${nt + 1}: опишите, что сделали`, true);
   const workers = [...new Set(steps.flatMap((w) => w.who))];
-  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).join("\n"),
+  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
     moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
-    steps: steps.length ? steps : null, workers, crew: workers.length ? Math.min(workers.length, 20) : (j?.crew ?? null) };
-  rememberWorkers(steps.at(-1)?.who || []);
+    steps: steps.length ? steps : null, workers, crew: people(workers).length ? Math.min(people(workers).length, 20) : (j?.crew ?? null) };
+  rememberWorkers(people(steps.at(-1)?.who || []));
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
     if (dup && !confirm(`Машина ${gar} уже на площадке (заезд ${fmt(dup.started_at)}). Всё равно создать новую запись?`)) return;
@@ -1150,7 +1283,8 @@ async function callAdmin(body) {
 function openStaff(id) {
   const s = S.staff.find((x) => x.id === id), self = s.id === S.me.id;
   S.edit = { staff: s, role: s.role, site: s.site };
-  $("#panel").innerHTML = `<div class="head"><b>${esc(s.name)}</b>${s.owner ? `<span class="badge">владелец</span>` : ""}<button class="iconbtn" data-act="close">✕</button></div>
+  $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="close">Отмена</button><b>${esc(s.name)}${s.owner ? `<small>владелец</small>` : ""}</b>
+    <button class="nb r" data-act="savestaff">Сохранить</button></div>
     <label class="f">Фамилия И.О. — как в таблицах</label><input class="inp" id="seName" value="${esc(s.name)}">
     <label class="f">Роль</label><div class="chips" id="seRole">${[["mechanic", "Механик"], ["admin", "Администратор"]].map(([v, t]) =>
       `<button class="chip ${s.role === v ? "on" : ""}" data-act="serole" data-v="${v}" ${self ? "disabled" : ""}>${t}</button>`).join("")}</div>
@@ -1166,8 +1300,8 @@ function openStaff(id) {
 }
 // участок: кнопка в полосе смены; работы и уведомления приходят только своего участка (ограничение на сервере)
 function openSite() {
-  $("#panel").innerHTML = `<div class="head"><b>Участок</b><button class="iconbtn" data-act="close">✕</button></div>
-    <div style="font-size:14px;color:var(--muted)">Работы и уведомления — только своего участка. Перевели на другой — выберите его здесь.</div>
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Участок</b><button class="nb r" data-act="close">Закрыть</button></div>
+    <div style="font-size:15px;color:var(--muted);margin:16px 16px 0">Работы и уведомления — только своего участка. Перевели на другой — выберите его здесь.</div>
     <div class="sitepick">${SITES.map((v) => `<button class="${S.me.site === v ? "on" : ""}" data-act="setsite" data-v="${v}">${v}</button>`).join("")}</div>`;
   $("#sheet").hidden = false;
 }
@@ -1216,7 +1350,9 @@ document.addEventListener("click", async (ev) => {
     case "wk": case "stsame": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i];
       const add = a === "stsame" ? (i ? S.edit.steps[i - 1].who : load("rz_wk_last", [])).filter((n) => !w.who.includes(n)) : w.who.includes(t.dataset.n) ? [] : [t.dataset.n];
       if (a === "wk" && !add.length) w.who.splice(w.who.indexOf(t.dataset.n), 1);
-      if (w.who.length + add.length > ST_CREW) return toast(`В тех. отчёте на одну работу — до ${ST_CREW} человек. Разделите на две работы.`, true);
+      else if (add.includes(REP)) { w.who.length = 0; add.splice(0, add.length, REP); }   // представители -- без фамилий
+      else if (add.length) { const k = w.who.indexOf(REP); if (k >= 0) w.who.splice(k, 1); }
+      if (people([...w.who, ...add]).length > ST_CREW) return toast(`В тех. отчёте на одну работу — до ${ST_CREW} человек. Разделите на две работы.`, true);
       w.who.push(...add);
       const q = stBox(i).querySelector('[data-sf="wq"]'); if (add.length) q.value = "";
       drawStWho(i); drawStRows(); break; }
@@ -1226,8 +1362,11 @@ document.addEventListener("click", async (ev) => {
     case "stdel": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i];
       if ((w.t || w.who.length) && !confirm(`Убрать работу ${i + 1}${w.t ? " «" + w.t.slice(0, 40) + "»" : ""}?`)) return;
       S.edit.steps.splice(i, 1); drawSteps(); break; }
-    case "stfrom": case "stto": { const i = +t.closest(".work").dataset.i, f = a === "stfrom" ? "from" : "to";
-      S.edit.steps[i][f] = hhmm(); stBox(i).querySelector(`[data-sf="${f}"]`).value = S.edit.steps[i][f]; drawStTot(i); break; }
+    case "stfrom": case "stto": setStTime(+t.closest(".work").dataset.i, a === "stfrom" ? "from" : "to", hhmm()); break;
+    case "tpick": openTp(t); break;
+    case "tpcancel": closeTp(); break;
+    case "tpdone": doneTp(); break;
+    case "tpclear": if (TP.f) setStTime(TP.i, TP.f, ""); else { $("#" + TP.id).value = ""; tShow(TP.id); } closeTp(); break;
     case "stpick": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i], box = stBox(i), ta = box.querySelector("textarea");
       w.t = w.t.trim() ? w.t.trim() + "; " + t.dataset.v : t.dataset.v; ta.value = w.t; fitTa(ta);
       box.querySelector('[data-sf="q"]').value = ""; drawStSug(i); break; }
@@ -1244,6 +1383,7 @@ document.addEventListener("click", async (ev) => {
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
       if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
+    case "view": S.view = t.dataset.v; render(); scrollTo(0, 0); break;
     case "theme": save("rz_theme", isDark() ? "light" : "dark"); applyTheme(); break;
     case "new": openJob(null); break;
     case "job": openJob(t.dataset.id); break;
@@ -1255,12 +1395,12 @@ document.addEventListener("click", async (ev) => {
     case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "to": { $("#more")?.setAttribute("open", ""); const w = S.edit.steps[0], ta = stBox(0).querySelector("textarea");
       w.t = !/^ТО-\d/.test(w.t) ? (t.dataset.v + " " + w.t).trim() : w.t.replace(/^ТО-\d/, t.dataset.v); ta.value = w.t; break; }
-    case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); break;
+    case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); tShow(t.dataset.for); break;
     case "wait": S.edit.wait = t.dataset.v; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.toggle("on", c === t));
       $("#fWaitOther").hidden = S.edit.wait !== "Другое"; if (S.edit.wait === "Другое") $("#fWaitOther").focus();
-      if (!$("#fReady").value) $("#fReady").value = toInput(new Date().toISOString()); break;
+      if (!$("#fReady").value) { $("#fReady").value = toInput(new Date().toISOString()); tShow("fReady"); } break;
     case "unready": S.edit.wait = ""; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.remove("on"));
-      $("#fWaitOther").hidden = true; $("#fReady").value = ""; break;
+      $("#fWaitOther").hidden = true; $("#fReady").value = ""; tShow("fReady"); break;
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
     case "deljob": if (confirm("Удалить запись? У механика она тоже пропадёт.")) { const j = S.edit.j;
@@ -1327,10 +1467,12 @@ document.addEventListener("click", async (ev) => {
 document.addEventListener("keydown", (e) => {
   if (!S.me && L.pick && /^\d$/.test(e.key) && L.pin.length < 4) { L.pin += e.key; renderLogin(); if (L.pin.length === 4) tryPin(); }
   if (e.key === "Enter" && e.target.id === "lName") findName();
+  if (e.key === "Escape" && !$("#tpick").hidden) return closeTp();
   if (e.key === "Escape" && !$("#pview").hidden) return void ($("#pview").hidden = true);
   if (e.key === "Escape" && !$("#sheet").hidden) closeSheet();
 });
 $("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+$("#tpick").addEventListener("click", (e) => { if (e.target.id === "tpick") closeTp(); });
 $("#pview").addEventListener("click", (e) => { if (e.target.id === "pview") e.target.hidden = true; });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
