@@ -306,6 +306,11 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 .online { font-size: 13px; color: var(--muted); margin: 10px 16px 0; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 5px; }
 /* выполненные работы -- как таблица тех. отчёта: описание, начало/окончание, ФИО */
+.insp { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0 16px; font-size: 15px; }
+.insp .seg button { padding: 0 10px; white-space: nowrap; color: inherit; }
+.pins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 16px; }
+.pins small { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; text-align: center; }
+.pins .inp { text-align: center; padding-left: 4px; padding-right: 4px; }
 .sec { display: flex; align-items: baseline; gap: 8px; margin: 22px 16px 7px; }
 .sec h3 { margin: 0; font-size: 13px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
 .sec .rows { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1000,7 +1005,7 @@ function openJob(id) {
   // rev -- версия записи на сервере при открытии: при сохранении проверить, не изменил ли её кто-то другой
   // новая запись -- на вкладку, откуда создана (у администратора заезд из «Ленты» -- Площадка); на ТО вид по умолчанию «ТО», можно сменить
   const area = j ? areaOf(j) : !isAdmin() && S.view === "to" ? "ТО" : "Площадка";
-  S.edit = { j, can, gar: j?.gar || "", area, kind: j?.kind || (area === "ТО" ? "ТО" : "Ремонт"), steps: stepsOf(j), rev: j && S.jobs.get(j.id)?.rev };
+  S.edit = { j, can, gar: j?.gar || "", area, kind: j?.kind || (area === "ТО" ? "ТО" : "Ремонт"), steps: stepsOf(j), insp: { ...(j?.inspect || {}) }, rev: j && S.jobs.get(j.id)?.rev };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<div class="sec"><h3>Выполнены работы</h3><span class="rows" id="stRows"></span></div><div id="steps"></div>
@@ -1009,7 +1014,8 @@ function openJob(id) {
     <label class="f">Запчасти / ТМЦ</label><textarea class="inp" id="fTmc" style="min-height:52px" ${dis}>${esc(j?.tmc)}</textarea>
     ${can ? `<div class="tmcq"><input class="inp" id="fTmcQ" placeholder="Найти в прайсе: артикул или слова" autocomplete="off">
       <input class="inp" id="fTmcN" inputmode="numeric" value="1" aria-label="Количество, шт"></div><div id="tmcList"></div>` : ""}
-    <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>`;
+    <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>
+    <div id="inspBox"></div>`;
   // ремонт закончен, машина ждёт не по нашей вине -- время готовности и причина (в таблицу -- примечанием)
   const wr = j?.wait_reason || "", other = !!wr && !WAITS.includes(wr);
   S.edit.wait = other ? "Другое" : wr;
@@ -1047,7 +1053,8 @@ function openJob(id) {
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
   ["fStart", "fReady", "fEnd"].forEach(tShow);
-  drawGars(); drawTo(); drawSteps();
+  drawGars(); drawTo(); drawSteps(); drawInsp();
+  $("#inspBox").addEventListener("input", (ev) => { if (ev.target.dataset.pin) S.edit.insp[ev.target.dataset.pin] = ev.target.value; });
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
   const ta = $("#fTmc"); fitTa(ta); ta.addEventListener("input", () => fitTa(ta));   // поле ТМЦ растёт по строкам
@@ -1074,6 +1081,27 @@ function drawGars() {
 function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
     [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
+}
+// ---------- осмотр на ТО (03.11.2026, решение пользователя, этап 1 отметок): jobs.inspect, в сообщение ТО; в книгу не идёт, rev не меняет ----------
+// на Площадке блока нет, отметки записи сохраняются (вернётся на ТО -- на месте)
+const INSP = [["ac", "Кондиционер", "исправен", "неисправен"], ["pzd", "ПЖД", "исправно", "неисправно"], ["ansul", "ANSUL", "исправен", "неисправен"],
+  ["heat", "Теплообменник", "исправен", "неисправен"], ["uspvl", "УСПВЛ", "исправно", "неисправно"]];
+const PINS = [["lv", "ЛВ"], ["ln", "ЛН"], ["pv", "ПВ"], ["pn", "ПН"]];
+function drawInsp() {
+  const e = S.edit, box = $("#inspBox"); if (!box) return;
+  if (e.area !== "ТО") { box.innerHTML = ""; return; }
+  const dis = e.can ? "" : "disabled";
+  box.innerHTML = `<div class="sec"><h3>Осмотр на ТО</h3></div>${INSP.map(([k, t]) => {
+    const opts = [["ok", "Исправен"], ["bad", "Неисправен"], ...(k === "uspvl" ? [["no", "Нет"]] : [])];
+    return `<div class="insp"><span>${t}</span><div class="seg" style="grid-template-columns:repeat(${opts.length},auto)">${opts.map(([v, l]) =>
+      `<button class="${e.insp[k] === v ? "on" : ""}" data-act="insp" data-k="${k}" data-v="${v}" ${dis}>${l}</button>`).join("")}</div></div>`;
+  }).join("")}<label class="f">Замер шкворней</label><div class="pins">${PINS.map(([k, t]) =>
+    `<label><small>${t}</small><input class="inp" inputmode="decimal" data-pin="${k}" aria-label="Шкворень ${t}" value="${esc(e.insp[k] ?? "")}" ${dis}></label>`).join("")}</div>`;
+}
+// строки сообщения ТО: только отмеченное
+function inspLines(j) {
+  const o = j.inspect || {}, pins = PINS.filter(([k]) => o[k]).map(([k, t]) => `${t} ${o[k]}`);
+  return [...INSP.filter(([k]) => o[k]).map(([k, t, ok, bad]) => `${t} ${o[k] === "ok" ? ok : o[k] === "bad" ? bad : "нет"}`), ...(pins.length ? [`Замер шкворней ${pins.join(" ")}`] : [])];
 }
 // ---------- выполненные работы (31.10.2026, решение пользователя): как таблица «Выполнены работы» тех. отчёта ----------
 // работа = описание + начало/окончание (ЧЧ:ММ, одно на всю бригаду) + ФИО; в бланке строка на человека: всего 10, на работу до 5.
@@ -1344,6 +1372,13 @@ function saveJob(exitNow) {
   if (ready && new Date(ready) > new Date(Date.now() + 10 * 60000)) return toast("Время готовности в будущем — проверьте", true);
   const motoS = $("#fMoto").value.replace(",", ".").trim();
   if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
+  const insp = {};
+  for (const [k] of INSP) if (e.insp[k]) insp[k] = e.insp[k];
+  for (const [k, t] of PINS) {
+    const v = String(e.insp[k] ?? "").replace(",", ".").trim();
+    if (v && isNaN(+v)) return toast(`Шкворень ${t} — числом`, true);
+    if (v) insp[k] = v;
+  }
   // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
   // пустые работы не сохраняем; описание можно не заполнять (решение пользователя 01.11.2026) -- в тех. отчёте строка с временем и ФИО;
@@ -1351,7 +1386,7 @@ function saveJob(exitNow) {
   const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who], d: w.d || (w.legacy ? "" : stKey(w.from)) }))
     .filter((w) => w.t || w.from || w.to || w.who.length);
   const workers = [...new Set(steps.flatMap((w) => w.who))];
-  const data = { gar, area: e.area, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
+  const data = { gar, area: e.area, inspect: Object.keys(insp).length ? insp : null, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
     moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
     steps: steps.length ? steps : null, workers, crew: people(workers).length ? Math.min(people(workers).length, 20) : (j?.crew ?? null) };
   rememberWorkers(people(steps.at(-1)?.who || []));
@@ -1418,7 +1453,7 @@ function chatText(sh, area, src = allJobs()) {
   const block = (j) => {
     const s = new Date(j.started_at), old = s.getTime() < st, out = j.ended_at && T(j.ended_at) < en ? new Date(j.ended_at) : null;
     return [j.gar, j.moto ? `М/ч ${j.moto}` : "", `${old ? dm(s) + " " : ""}${hm(s)}-${out ? hm(out) : "в ремонте"}`, old ? "Продолжение ремонта" : "",
-      ...lines(j.fault), ...lines(j.work), ...lines(j.tmc).map((x) => "ТМЦ: " + x)].filter(Boolean).join("\n");
+      ...lines(j.fault), ...lines(j.work), ...lines(j.tmc).map((x) => "ТМЦ: " + x), ...(area === "ТО" ? inspLines(j) : [])].filter(Boolean).join("\n");
   };
   return [area === "ТО" ? `${S.me.site} ТО` : `Карьер ${S.me.site}:`, idle.map((j) => `${j.gar}\nБез воздействия`).join("\n"), ...xs.map(block)].filter(Boolean).join("\n\n");
 }
@@ -1527,7 +1562,8 @@ document.addEventListener("click", async (ev) => {
     case "pclose": $("#pview").hidden = true; break;
     case "pdel": delPhoto(t.dataset.id); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
-    case "area": S.edit.area = t.dataset.v; document.querySelectorAll("#fArea .chip").forEach((c) => c.classList.toggle("on", c === t));
+    case "insp": { const e = S.edit, k = t.dataset.k; if (e.insp[k] === t.dataset.v) delete e.insp[k]; else e.insp[k] = t.dataset.v; drawInsp(); break; }
+    case "area": S.edit.area = t.dataset.v; document.querySelectorAll("#fArea .chip").forEach((c) => c.classList.toggle("on", c === t)); drawInsp();
       if (S.edit.j || S.edit.kindSet) break;   // новая запись, вид не выбирали сами -- вид по вкладке
       S.edit.kind = S.edit.area === "ТО" ? "ТО" : "Ремонт"; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "kind": S.edit.kind = t.dataset.v; S.edit.kindSet = true; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
