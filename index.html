@@ -191,10 +191,10 @@ textarea.inp { min-height: 66px; resize: vertical; line-height: 1.35; }
 .chip { min-height: 36px; border: 0; background: var(--chip); border-radius: 18px; padding: 7px 14px; cursor: pointer; font-size: 15px; }
 .chip.on { background: var(--red); color: #fff; }
 .chip:disabled { opacity: .55; }
-#fKind, #nsRole, #seRole, #seSite { flex-wrap: nowrap; gap: 0; background: var(--chip); border-radius: 9px; padding: 2px; }
-#fKind .chip, #nsRole .chip, #seRole .chip, #seSite .chip { flex: 1; min-width: 0; min-height: 32px; border-radius: 7px; background: none; color: var(--text);
+#fArea, #fKind, #nsRole, #seRole, #seSite { flex-wrap: nowrap; gap: 0; background: var(--chip); border-radius: 9px; padding: 2px; }
+#fArea .chip, #fKind .chip, #nsRole .chip, #seRole .chip, #seSite .chip { flex: 1; min-width: 0; min-height: 32px; border-radius: 7px; background: none; color: var(--text);
   padding: 4px 1px; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#fKind .chip.on, #nsRole .chip.on, #seRole .chip.on, #seSite .chip.on { background: var(--seg-on); color: var(--text); font-weight: 600;
+#fArea .chip.on, #fKind .chip.on, #nsRole .chip.on, #seRole .chip.on, #seSite .chip.on { background: var(--seg-on); color: var(--text); font-weight: 600;
   box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
 .gars { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin-top: 8px; max-height: 208px; overflow-y: auto; }
 .gars button { min-height: 44px; border: 0; background: var(--card); color: var(--text); border-radius: 10px; font-size: 17px; font-weight: 600; cursor: pointer; }
@@ -206,8 +206,9 @@ textarea.inp { min-height: 66px; resize: vertical; line-height: 1.35; }
 .seg button.on { background: var(--seg-on); font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
 .seg button:disabled { opacity: .55; }
 .seg.two { grid-template-columns: 1fr 1fr; }
+.seg.three { grid-template-columns: auto auto auto; }
 .seg.views { margin-top: 14px; }
-.seg.views button { min-height: 34px; font-size: 15px; }
+.seg.views button { min-height: 34px; font-size: 15px; padding: 0 4px; white-space: nowrap; }
 .timebox { display: flex; gap: 8px; } .timebox .inp { flex: 1; min-width: 0; }
 /* поле времени: кнопка со значением, выбор -- барабанами (#tpick) */
 .tval { text-align: left; cursor: pointer; color: var(--red); font-variant-numeric: tabular-nums; }
@@ -378,6 +379,8 @@ const CREDIT = `<div class="credit">Разработчик — Умаров Р.�
 const DAY_START = 7, NIGHT_START = 19;          // смены: 1 -- ночь 19:00–7:00 (дата окончания), 2 -- день
 const KEEP_DAYS = 3;                            // закрытые записи в ленте -- за последние сутки×3
 const LONG_MS = 24 * 3600000;                   // долгострой (01.11.2026, решение пользователя): на площадке дольше суток -- в отдельном окне
+// вкладка записи (jobs.area): откуда создана, не по виду работ -- на ТО бывают доливы и ремонты; запись без area (кэш до обновления) -- по виду
+const areaOf = (j) => j.area || (j.kind === "ТО" ? "ТО" : "Площадка");
 
 // запрос к серверу -- не дольше 15 с: при плохой связи не висим (ошибка «нет связи», очередь повторит)
 const fetchT = (url, opt = {}) => {
@@ -799,7 +802,7 @@ function card(j, opts = {}) {
     : open ? `<span class="tm" title="На площадке ${dur(j.started_at)}">${clock(j.started_at)}</span>`
     : `<span class="tm" title="Стояла ${dur(j.started_at, j.ended_at)}">${clock(j.started_at, j.ended_at)}</span>`;
   const st = open && ready ? `Готова, ждёт${why ? ` — ${why}` : ""} · ремонт ${dur(j.started_at, j.ready_at)}`
-    : open ? `На площадке с ${when(j.started_at)}` : `Выехала ${when(j.ended_at)}`;
+    : open ? `${areaOf(j) === "ТО" ? "На ТО" : "На площадке"} с ${when(j.started_at)}` : `Выехала ${when(j.ended_at)}`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
   const crew = j.workers?.length ? esc(j.workers.join(", ")) : j.crew ? `${j.crew} чел.` : "", nPh = S.photos.get(j.id)?.length || 0;
   const meta = [crew && `<span title="Кто работает">${svg(ICON.people)}${crew}</span>`, nPh && `<span title="Фото">${svg(ICON.cam)}${nPh}</span>`].filter(Boolean);
@@ -831,21 +834,26 @@ function render() {
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
   const sw = [1, 2].map((n) => `<button class="${sh.n === n ? "on" : ""}" data-act="shift" data-v="${n}">${n === 1 ? "Ночь" : "День"}</button>`).join("");
   const head = `<div class="shift"><span>${dm(sh.date)} · смена ${sh.n} <span class="sw">${sw}</span> <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
-  // площадка / долгострои: переключатель над списком, редактирование -- та же карточка записи
+  // площадка / ТО / долгострои: переключатель над списком, редактирование -- та же карточка записи
+  // ТО дольше суток остаётся на вкладке ТО; долгострои -- только записи площадки
   const isLong = (j) => Date.now() - new Date(j.started_at) >= LONG_MS;
-  const yard = openJ.filter((j) => !isLong(j)), longJ = openJ.filter(isLong);
-  const views = `<div class="seg two views">${[["yard", "Площадка", yard.length], ["long", "Долгострои", longJ.length]].map(([k, t, n]) =>
+  const pad = openJ.filter((j) => areaOf(j) === "Площадка");
+  const yard = pad.filter((j) => !isLong(j)), longJ = pad.filter(isLong), toJ = openJ.filter((j) => areaOf(j) === "ТО");
+  const views = `<div class="seg three views">${[["yard", "Площадка", yard.length], ["to", "ТО", toJ.length], ["long", "Долгострои", longJ.length]].map(([k, t, n]) =>
     `<button class="${S.view === k ? "on" : ""}" data-act="view" data-v="${k}">${t} · ${n}</button>`).join("")}</div>`;
   const yardH = S.view === "long" ? `<h2>Стоят больше суток <span class="n">${longJ.length}</span></h2>${list(longJ, {}, "Долгостроев нет")}`
+    : S.view === "to" ? `<h2>На ТО <span class="n">${toJ.length}</span></h2>${list(toJ, {}, "Сейчас на ТО никого")}`
     : `<h2>На площадке <span class="n">${yard.length}</span></h2>${list(yard, {}, "Сейчас на площадке никого")}`;
+  // выезды смены -- все по участку (ремонт могли начать и закрыть разные механики), только машины открытой вкладки
+  const area = S.view === "to" ? "ТО" : "Площадка";
+  const outs = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start && areaOf(j) === area)
+    .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
+  const outH = S.view === "long" ? "" : `<h2>Выезды за смену <span class="n">${outs.length}</span><button class="btn small" style="margin-left:auto;text-transform:none;letter-spacing:0" data-act="chatmsg" data-area="${area}">Сообщение в чат</button></h2>${list(outs, {}, "Пока нет")}`;
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
-    // выезды смены -- все по участку: ремонт могли начать и закрыть разные механики
-    const mine = js.filter((j) => j.ended_at && new Date(j.ended_at) >= sh.start)
-      .sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
     h = `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
-      ${views}${yardH}${S.view === "long" ? "" : `<h2>Выезды за смену <span class="n">${mine.length}</span><button class="btn small" style="margin-left:auto;text-transform:none;letter-spacing:0" data-act="chatmsg">Сообщение в чат</button></h2>${list(mine, {}, "Пока нет")}`}`;
+      ${views}${yardH}${outH}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
@@ -855,7 +863,8 @@ function render() {
       const notIn = js.filter((j) => j.site === EXCEL_SITE && j.rev > j.imported_rev).length;
       h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
-        <button class="btn" data-act="chatmsg">Сообщение в чат</button>
+        <button class="btn" data-act="chatmsg" data-area="Площадка">В чат: Площадка</button>
+        <button class="btn" data-act="chatmsg" data-area="ТО">В чат: ТО</button>
         ${nc ? `<button class="btn" data-act="seen">Просмотрено (${nc})</button>` : ""}
         ${"Notification" in window && (pushOk() ? !S.push && Notification.permission !== "denied" : Notification.permission === "default")
           ? `<button class="btn" data-act="notif">🔔 Уведомления</button>` : ""}
@@ -864,7 +873,7 @@ function render() {
           return on.length ? `<div class="online"><span class="dot"></span>В приложении: ${on.map((s) => esc(s.name)).join(", ")}</div>` : ""; })()}
         ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
     } else if (S.tab === "open") {
-      h += `${head}${views}${yardH}`;
+      h += `${head}${views}${yardH}${outH}`;
     } else if (S.tab === "staff") {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
       // участок: администратор видит людей своего участка, владелец -- ещё и другого (отдельным списком)
@@ -935,7 +944,9 @@ function openJob(id) {
   // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
   const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
   // rev -- версия записи на сервере при открытии: при сохранении проверить, не изменил ли её кто-то другой
-  S.edit = { j, can, gar: j?.gar || "", kind: j?.kind || "Ремонт", steps: stepsOf(j), rev: j && S.jobs.get(j.id)?.rev };
+  // новая запись -- на вкладку, откуда создана (у администратора заезд из «Ленты» -- Площадка); на ТО вид по умолчанию «ТО», можно сменить
+  const area = j ? areaOf(j) : !isAdmin() && S.view === "to" ? "ТО" : "Площадка";
+  S.edit = { j, can, gar: j?.gar || "", area, kind: j?.kind || (area === "ТО" ? "ТО" : "Ремонт"), steps: stepsOf(j), rev: j && S.jobs.get(j.id)?.rev };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<div class="sec"><h3>Выполнены работы</h3><span class="rows" id="stRows"></span></div><div id="steps"></div>
@@ -962,6 +973,8 @@ function openJob(id) {
     <label class="f">Гаражный номер</label>
     <input class="inp" id="fGar" inputmode="numeric" placeholder="Начните вводить номер" value="${esc(S.edit.gar)}" ${dis} autocomplete="off">
     <div class="gars" id="garGrid"></div><div id="garWarn"></div>
+    <label class="f">Вкладка</label>
+    <div class="chips" id="fArea">${["Площадка", "ТО"].map((k) => `<button class="chip ${k === S.edit.area ? "on" : ""}" data-act="area" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <label class="f">Вид работ</label>
     <div class="chips" id="fKind">${KINDS.map((k) => `<button class="chip ${k === S.edit.kind ? "on" : ""}" data-act="kind" data-v="${k}" ${dis}>${k}</button>`).join("")}</div>
     <div class="chips" id="toChips" style="margin-top:6px"></div>
@@ -1283,7 +1296,7 @@ function saveJob(exitNow) {
   const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who] }))
     .filter((w) => w.t || w.from || w.to || w.who.length);
   const workers = [...new Set(steps.flatMap((w) => w.who))];
-  const data = { gar, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
+  const data = { gar, area: e.area, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
     moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
     steps: steps.length ? steps : null, workers, crew: people(workers).length ? Math.min(people(workers).length, 20) : (j?.crew ?? null) };
   rememberWorkers(people(steps.at(-1)?.who || []));
@@ -1334,15 +1347,15 @@ function openSite() {
     <div class="sitepick">${SITES.map((v) => `<button class="${S.me.site === v ? "on" : ""}" data-act="setsite" data-v="${v}">${v}</button>`).join("")}</div>`;
   $("#sheet").hidden = false;
 }
-// сообщение в общий чат за выбранную смену (01.11.2026, решение пользователя): все записи участка, кроме ТО (для ТО нет полей замеров).
+// сообщение в общий чат за выбранную смену (01.11.2026, решение пользователя): записи участка с одной вкладки (Площадка или ТО).
 // Входят: заехавшие или выехавшие в смену и начатые раньше, если запись меняли в эту смену («Продолжение ремонта»).
-// Стоят с прошлых смен, запись не менялась с начала смены -- вверху списком «Без воздействия», как в чате.
-function chatText(sh) {
+// Площадка: стоят с прошлых смен, запись не менялась с начала смены -- вверху списком «Без воздействия», как в чате; на ТО этого списка нет.
+function chatText(sh, area) {
   const st = sh.start.getTime(), en = st + SHIFT_LEN, T = (x) => x ? new Date(x).getTime() : 0, inS = (t) => t >= st && t < en;
-  const js = allJobs().filter((j) => j.kind !== "ТО" && (j.site || S.me.site) === S.me.site).sort((a, b) => T(a.started_at) - T(b.started_at));
+  const js = allJobs().filter((j) => areaOf(j) === area && (j.site || S.me.site) === S.me.site).sort((a, b) => T(a.started_at) - T(b.started_at));
   const xs = js.filter((j) => inS(T(j.started_at)) || inS(T(j.ended_at))
     || (T(j.started_at) < st && (!j.ended_at || T(j.ended_at) >= en) && inS(T(j.updated_at))));
-  const idle = js.filter((j) => !j.ended_at && T(j.started_at) < st && T(j.updated_at) < st);
+  const idle = area === "ТО" ? [] : js.filter((j) => !j.ended_at && T(j.started_at) < st && T(j.updated_at) < st);
   if (!xs.length && !idle.length) return "";
   const lines = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
   const block = (j) => {
@@ -1350,12 +1363,12 @@ function chatText(sh) {
     return [j.gar, j.moto ? `М/ч ${j.moto}` : "", `${old ? dm(s) + " " : ""}${hm(s)}-${out ? hm(out) : "в ремонте"}`, old ? "Продолжение ремонта" : "",
       ...lines(j.fault), ...lines(j.work), ...lines(j.tmc).map((x) => "ТМЦ: " + x)].filter(Boolean).join("\n");
   };
-  return [`Карьер ${S.me.site}:`, idle.map((j) => `${j.gar}\nБез воздействия`).join("\n"), ...xs.map(block)].filter(Boolean).join("\n\n");
+  return [area === "ТО" ? `${S.me.site} ТО` : `Карьер ${S.me.site}:`, idle.map((j) => `${j.gar}\nБез воздействия`).join("\n"), ...xs.map(block)].filter(Boolean).join("\n\n");
 }
-function openChatMsg() {
-  const sh = myShift(), text = chatText(sh);
-  if (!text) return toast("За эту смену записей нет");
-  $("#panel").innerHTML = `<div class="head"><span></span><b>Сообщение в чат<small>${dm(sh.date)} · смена ${sh.n}</small></b><button class="nb r" data-act="close">Закрыть</button></div>
+function openChatMsg(area) {
+  const sh = myShift(), text = chatText(sh, area);
+  if (!text) return toast(`${area}: за эту смену записей нет`);
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Сообщение в чат<small>${area} · ${dm(sh.date)} · смена ${sh.n}</small></b><button class="nb r" data-act="close">Закрыть</button></div>
     <div style="font-size:15px;color:var(--muted);margin:12px 16px 8px">Текст можно поправить перед отправкой.</div>
     <textarea class="inp" id="chatTxt" style="min-height:50vh">${esc(text)}</textarea>
     <div class="actions bar"><button class="btn" data-act="chatcopy">Скопировать</button>${navigator.share ? `<button class="btn red" data-act="chatshare">Отправить</button>` : ""}</div>`;
@@ -1453,7 +1466,10 @@ document.addEventListener("click", async (ev) => {
     case "pclose": $("#pview").hidden = true; break;
     case "pdel": delPhoto(t.dataset.id); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
-    case "kind": S.edit.kind = t.dataset.v; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
+    case "area": S.edit.area = t.dataset.v; document.querySelectorAll("#fArea .chip").forEach((c) => c.classList.toggle("on", c === t));
+      if (S.edit.j || S.edit.kindSet) break;   // новая запись, вид не выбирали сами -- вид по вкладке
+      S.edit.kind = S.edit.area === "ТО" ? "ТО" : "Ремонт"; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
+    case "kind": S.edit.kind = t.dataset.v; S.edit.kindSet = true; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "to": { $("#more")?.setAttribute("open", ""); const w = S.edit.steps[0], ta = stBox(0).querySelector("textarea");
       w.t = !/^ТО-\d/.test(w.t) ? (t.dataset.v + " " + w.t).trim() : w.t.replace(/^ТО-\d/, t.dataset.v); ta.value = w.t; break; }
     case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); tShow(t.dataset.for); break;
@@ -1505,7 +1521,7 @@ document.addEventListener("click", async (ev) => {
     case "sesite": S.edit.site = t.dataset.v; document.querySelectorAll("#seSite .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "ssite": L.site = t.dataset.v; document.querySelectorAll("#sSite button").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "site": openSite(); break;
-    case "chatmsg": openChatMsg(); break;
+    case "chatmsg": openChatMsg(t.dataset.area); break;
     case "chatcopy": copyChatMsg(); break;
     case "chatshare": navigator.share({ text: $("#chatTxt").value }).catch(() => {}); break;
     case "shift": pickShift(+t.dataset.v); break;
