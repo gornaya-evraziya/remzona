@@ -88,6 +88,10 @@ h2 .n.red { background: var(--red); color: #fff; border-radius: 9px; padding: 0 
 .shift .sw button { border: 0; background: none; color: inherit; font-size: 13px; font-weight: 500; min-height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer; }
 .shift .sw button.on { background: var(--seg-on); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); font-weight: 600; }
 .shift small { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.shift .sdate { border: 0; background: none; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; text-decoration: underline dotted var(--muted); text-underline-offset: 4px; }
+.pastday { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }
+.pastday b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pastday small { color: var(--muted); font-size: 14px; flex: 1; }
 .shift .site { border: 0; background: none; color: var(--red); font-size: 15px; padding: 0 10px; min-height: 36px; margin-left: auto; cursor: pointer; white-space: nowrap; }
 .shift .site::after { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 0 1px 6px;
   border-right: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); opacity: .6; }
@@ -455,6 +459,13 @@ function myShift(now = new Date()) {
   const s = load("rz_shift", 0);
   return s && now - s >= -SHIFT_SLACK && now - s <= SHIFT_LEN + SHIFT_SLACK ? shiftOf(new Date(s + 60000)) : shiftOf(now);
 }
+// смена работы в jobs.steps (поле d, «гггг-мм-дд/смена»): показать в прошлой смене только её работы; to_report и бланк d не берут
+const shKey = (sh) => `${sh.date.getFullYear()}-${pad2(sh.date.getMonth() + 1)}-${pad2(sh.date.getDate())}/${sh.n}`;
+function stKey(from) {   // начало работы приходится на другую смену, чем выбранная, -- значит, вписывают за прошедшую
+  const sh = myShift(); if (!isHm(from)) return shKey(sh);
+  const h = +from.slice(0, 2), n = h >= DAY_START && h < NIGHT_START ? 2 : 1;
+  return shKey(n === sh.n ? sh : shiftOf(new Date(sh.start.getTime() - 60000)));
+}
 function pickShift(n) {
   const now = new Date(), auto = shiftOf(now), st = auto.start.getTime();
   // выбрана не та, что по часам, -- ближайшая из соседних: только что кончившаяся или следующая
@@ -794,12 +805,13 @@ function renderConn() {
 }
 function card(j, opts = {}) {
   const m = S.machines.find((x) => x.gar === j.gar);
-  const open = !j.ended_at;
+  // opts.at -- конец прошлой смены: что было после него, в этой смене ещё не случилось
+  const at = opts.at, open = !j.ended_at || (at && new Date(j.ended_at) >= at);
   const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
-  const ready = !!j.ready_at, why = esc((j.wait_reason || "").toLowerCase());
+  const ready = !!j.ready_at && !(at && new Date(j.ready_at) >= at), why = esc((j.wait_reason || "").toLowerCase());
   // справа -- время: на площадке / ждёт / сколько стояла; под видом работ -- статус и механик
-  const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(j.ready_at)}">${clock(j.ready_at)}</span>`
-    : open ? `<span class="tm" title="На площадке ${dur(j.started_at)}">${clock(j.started_at)}</span>`
+  const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(j.ready_at, at)}">${clock(j.ready_at, at)}</span>`
+    : open ? `<span class="tm" title="На площадке ${dur(j.started_at, at)}">${clock(j.started_at, at)}</span>`
     : `<span class="tm" title="Стояла ${dur(j.started_at, j.ended_at)}">${clock(j.started_at, j.ended_at)}</span>`;
   const st = open && ready ? `Готова, ждёт${why ? ` — ${why}` : ""} · ремонт ${dur(j.started_at, j.ready_at)}`
     : open ? `${areaOf(j) === "ТО" ? "На ТО" : "На площадке"} с ${when(j.started_at)}` : `Выехала ${when(j.ended_at)}`;
@@ -833,7 +845,7 @@ function render() {
   const js = allJobs(), sh = myShift();
   const openJ = js.filter((j) => !j.ended_at).sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
   const sw = [1, 2].map((n) => `<button class="${sh.n === n ? "on" : ""}" data-act="shift" data-v="${n}">${n === 1 ? "Ночь" : "День"}</button>`).join("");
-  const head = `<div class="shift"><span>${dm(sh.date)} · смена ${sh.n} <span class="sw">${sw}</span> <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
+  const head = `<div class="shift"><span><button class="sdate" data-act="pastpick">${dm(sh.date)} · смена ${sh.n}</button> <span class="sw">${sw}</span> <small>${hm(new Date())}</small></span><button class="site" data-act="site">${esc(S.me.site || EXCEL_SITE)}</button></div>`;
   // площадка / ТО / долгострои: переключатель над списком, редактирование -- та же карточка записи
   // ТО дольше суток остаётся на вкладке ТО; долгострои -- только записи площадки
   const isLong = (j) => Date.now() - new Date(j.started_at) >= LONG_MS;
@@ -852,14 +864,16 @@ function render() {
   let h = "";
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
-    h = `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
+    h = S.past ? pastHtml() : `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
       ${views}${yardH}${outH}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
     $("#nav").innerHTML = nav.map(([k, t, ic, n, c]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${svg(ic)}${t}${n ? `<span class="n ${c}">${n}</span>` : ""}</button>`).join("");
-    if (S.tab === "feed") {
-      const feed = [...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    if (S.past && (S.tab === "feed" || S.tab === "open")) {
+      h += pastHtml();
+    } else if (S.tab === "feed") {
+      const feed =[...js].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
       const notIn = js.filter((j) => j.site === EXCEL_SITE && j.rev > j.imported_rev).length;
       h += `${head}
         <div class="row" style="margin-top:10px"><button class="btn red" data-act="new">＋ Заезд</button>
@@ -922,6 +936,46 @@ function render() {
   if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
   renderConn(); hideSplash();
 }
+// ---------- просмотр прошлой смены (решение пользователя): только просмотр, грузится с сервера, S.past не сохраняется ----------
+function openPastPick() {
+  const now = Date.now(), cur = shiftOf(), on = S.past?.start ?? myShift().start.getTime(), DAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+  const rows = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(cur.date); d.setDate(d.getDate() - i);
+    const night = new Date(d); night.setDate(night.getDate() - 1); night.setHours(NIGHT_START, 0, 0, 0);
+    const day = new Date(d); day.setHours(DAY_START, 0, 0, 0);
+    const b = (st, t) => `<button class="chip ${st.getTime() === on ? "on" : ""}" data-act="pastgo" data-st="${st.getTime()}" ${st.getTime() > now ? "disabled" : ""}>${t}</button>`;
+    return `<div class="pastday"><b>${dm(d)}</b><small>${DAYS[d.getDay()]}</small>${b(night, "Ночь")}${b(day, "День")}</div>`;
+  }).join("");
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Прошлые смены<small>за 30 суток, только просмотр</small></b><button class="nb r" data-act="close">Закрыть</button></div>${rows}`;
+  $("#sheet").hidden = false;
+}
+// запись глазами прошлой смены: работы с d другой смены не показываем; работы без d (внесены до 03.11.2026) -- во всех сменах
+function pastJob(j, key) {
+  if (!Array.isArray(j.steps) || !j.steps.some((w) => w.d)) return j;
+  const steps = j.steps.filter((w) => !w.d || w.d === key), workers = [...new Set(steps.flatMap((w) => w.who || []))];
+  return { ...j, steps, workers, work: steps.map((w) => w.t).filter(Boolean).join("\n"), crew: workers.length ? j.crew : null };
+}
+async function openPast(start) {
+  if (start === shiftOf().start.getTime()) { S.past = null; closeSheet(); render(); return scrollTo(0, 0); }   // идущая смена -- обычный экран
+  if (!navigator.onLine) return toast("Нет связи — прошлую смену не загрузить", true);
+  const sh = shiftOf(new Date(start + 60000)), en = start + SHIFT_LEN;
+  toast("Загрузка смены…");
+  const { data, error } = await sb.from("jobs").select("*").eq("deleted", false).eq("site", S.me.site).lt("started_at", new Date(en).toISOString())
+    .or(`ended_at.is.null,ended_at.gte.${new Date(start).toISOString()}`).order("started_at").limit(500);
+  if (error) return toast(netErr(error) ? "Нет связи — прошлую смену не загрузить" : error.message, true);
+  S.past = { sh, start, en, area: S.past?.area || (S.view === "to" ? "ТО" : "Площадка"), jobs: data.map((j) => pastJob(j, shKey(sh))) };
+  closeSheet(); render(); scrollTo(0, 0);
+}
+function pastHtml() {
+  const { sh, en, area, jobs } = S.past, T = (x) => new Date(x).getTime(), n = (a) => jobs.filter((j) => areaOf(j) === a).length;
+  const js = jobs.filter((j) => areaOf(j) === area), at = en;
+  const stayed = js.filter((j) => !j.ended_at || T(j.ended_at) >= en);
+  const outs = js.filter((j) => j.ended_at && T(j.ended_at) < en).sort((a, b) => T(b.ended_at) - T(a.ended_at));
+  return `<div class="shift"><span><button class="sdate" data-act="pastpick">Просмотр: ${dm(sh.date)} · смена ${sh.n}</button></span><button class="btn small" data-act="pastback">К текущей смене</button></div>
+    <div class="seg two views">${["Площадка", "ТО"].map((a) => `<button class="${a === area ? "on" : ""}" data-act="pastarea" data-v="${a}">${a} · ${n(a)}</button>`).join("")}</div>
+    <h2>Оставались ${area === "ТО" ? "на ТО" : "на площадке"} <span class="n">${stayed.length}</span></h2>${list(stayed, { at }, "Никого")}
+    <h2>Выезды за смену <span class="n">${outs.length}</span><button class="btn small" style="margin-left:auto;text-transform:none;letter-spacing:0" data-act="chatmsg" data-area="${area}">Сообщение в чат</button></h2>${list(outs, { at }, "Не было")}`;
+}
 // фоновая перерисовка (раз в минуту, события с сервера): пока вписывают в поле на экране -- не трогать (клавиатура не закроется),
 // перерисуется в следующий раз
 function renderSoft() {
@@ -940,9 +994,9 @@ function drawWkAdmin() {
 
 // ---------- карточка заезда ----------
 function openJob(id) {
-  const j = id ? allJobs().find((x) => x.id === id) : null;
-  // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update)
-  const can = !j || j.site === S.me.site || j.mechanic_id === S.me.id;
+  const j = id ? (S.past ? S.past.jobs : allJobs()).find((x) => x.id === id) : null;
+  // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update); прошлая смена -- только просмотр
+  const can = !S.past && (!j || j.site === S.me.site || j.mechanic_id === S.me.id);
   // rev -- версия записи на сервере при открытии: при сохранении проверить, не изменил ли её кто-то другой
   // новая запись -- на вкладку, откуда создана (у администратора заезд из «Ленты» -- Площадка); на ТО вид по умолчанию «ТО», можно сменить
   const area = j ? areaOf(j) : !isAdmin() && S.view === "to" ? "ТО" : "Площадка";
@@ -967,7 +1021,7 @@ function openJob(id) {
   $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="close">${can ? "Отмена" : "Закрыть"}</button>
       <b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}${j ? `<small>${esc(j.mechanic_name || "")}</small>` : ""}</b>
       ${j && can ? `<button class="nb r" data-act="savejob">Сохранить</button>` : "<span></span>"}</div>
-    ${can ? "" : `<div class="warn">Запись другого участка — только просмотр.</div>`}
+    ${can ? "" : `<div class="warn">${S.past ? "Прошлая смена" : "Запись другого участка"} — только просмотр.</div>`}
     ${!j ? "" : j.id.startsWith("q:") ? `<div class="pnote">📷 Фото — когда запись отправится на сервер</div>`
       : `<label class="f">Фото</label><div class="photos" id="fPhotos"></div>`}
     <label class="f">Гаражный номер</label>
@@ -988,7 +1042,7 @@ function openJob(id) {
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input type="hidden" id="fEnd" value="${toInput(j.ended_at)}">${tBtn("fEnd", "Время выезда", dis)}
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
-    ${j && (isAdmin() || j.mechanic_id === S.me.id) ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
+    ${j && !S.past && (isAdmin() || j.mechanic_id === S.me.id) ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
     ${can ? `<div class="actions bar">${j ? `<button class="btn ${j.ended_at ? "red" : ""}" data-act="savejob">Сохранить</button>${!j.ended_at ? `<button class="btn red" data-act="exit">Выехала сейчас</button>` : ""}`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
@@ -1035,8 +1089,9 @@ const WORKS = /*WORKS*/["Диагностика гидравлической с�
 const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 const isHm = (s) => /^\d\d:\d\d$/.test(s || "");
 function stepsOf(j) {
-  if (Array.isArray(j?.steps) && j.steps.length) return j.steps.map((w) => ({ t: w.t || "", from: w.from || "", to: w.to || "", who: [...(w.who || [])] }));
-  return [{ t: j?.work || "", from: "", to: "", who: [...(j?.workers || [])] }];
+  // legacy -- работа внесена до появления d: смена неизвестна, при сохранении d не ставим
+  if (Array.isArray(j?.steps) && j.steps.length) return j.steps.map((w) => ({ t: w.t || "", from: w.from || "", to: w.to || "", who: [...(w.who || [])], d: w.d || "", legacy: !w.d }));
+  return [{ t: j?.work || "", from: "", to: "", who: [...(j?.workers || [])], d: "", legacy: !!(j?.work || j?.workers?.length) }];
 }
 function stDur(a, b) {
   if (!isHm(a) || !isHm(b)) return "";
@@ -1193,7 +1248,7 @@ async function addPhotos(files) {
   if (ok) toast(ok === 1 ? "Фото отправлено" : `Фото отправлено: ${ok}`);
 }
 function viewPhoto(p) {
-  const v = $("#pview"), mine = p.staff_id === S.me.id || isAdmin();
+  const v = $("#pview"), mine = !S.past && (p.staff_id === S.me.id || isAdmin());
   v.innerHTML = `<img src="${S.purl.get(p.path) || ""}" alt="Фото" data-act="pclose"><div class="bar"><span>${when(p.created_at)}</span>
     ${mine ? `<button class="btn small" data-act="pdel" data-id="${p.id}">Удалить</button>` : ""}<button class="btn small dark" data-act="pclose">Закрыть</button></div>`;
   v.hidden = false;
@@ -1293,7 +1348,7 @@ function saveJob(exitNow) {
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
   // пустые работы не сохраняем; описание можно не заполнять (решение пользователя 01.11.2026) -- в тех. отчёте строка с временем и ФИО;
   // в «Сделано» книги -- описания построчно (переносы внутри описания бланк сведёт через «; »)
-  const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who] }))
+  const steps = e.steps.map((w) => ({ t: cap(w.t), from: isHm(w.from) ? w.from : "", to: isHm(w.to) ? w.to : "", who: [...w.who], d: w.d || (w.legacy ? "" : stKey(w.from)) }))
     .filter((w) => w.t || w.from || w.to || w.who.length);
   const workers = [...new Set(steps.flatMap((w) => w.who))];
   const data = { gar, area: e.area, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
@@ -1350,12 +1405,14 @@ function openSite() {
 // сообщение в общий чат за выбранную смену (01.11.2026, решение пользователя): записи участка с одной вкладки (Площадка или ТО).
 // Входят: заехавшие или выехавшие в смену и начатые раньше, если запись меняли в эту смену («Продолжение ремонта»).
 // Площадка: стоят с прошлых смен, запись не менялась с начала смены -- вверху списком «Без воздействия», как в чате; на ТО этого списка нет.
-function chatText(sh, area) {
-  const st = sh.start.getTime(), en = st + SHIFT_LEN, T = (x) => x ? new Date(x).getTime() : 0, inS = (t) => t >= st && t < en;
-  const js = allJobs().filter((j) => areaOf(j) === area && (j.site || S.me.site) === S.me.site).sort((a, b) => T(a.started_at) - T(b.started_at));
-  const xs = js.filter((j) => inS(T(j.started_at)) || inS(T(j.ended_at))
-    || (T(j.started_at) < st && (!j.ended_at || T(j.ended_at) >= en) && inS(T(j.updated_at))));
-  const idle = area === "ТО" ? [] : js.filter((j) => !j.ended_at && T(j.started_at) < st && T(j.updated_at) < st);
+// src -- записи прошлой смены с сервера; менялась ли запись в ту смену -- по updated_at или по работам с d этой смены
+function chatText(sh, area, src = allJobs()) {
+  const st = sh.start.getTime(), en = st + SHIFT_LEN, T = (x) => x ? new Date(x).getTime() : 0, inS = (t) => t >= st && t < en, key = shKey(sh);
+  const worked = (j) => Array.isArray(j.steps) && j.steps.some((w) => w.d === key);
+  const js = src.filter((j) => areaOf(j) === area && (j.site || S.me.site) === S.me.site).sort((a, b) => T(a.started_at) - T(b.started_at));
+  const stayed = (j) => T(j.started_at) < st && (!j.ended_at || T(j.ended_at) >= en);
+  const xs = js.filter((j) => inS(T(j.started_at)) || inS(T(j.ended_at)) || (stayed(j) && (inS(T(j.updated_at)) || worked(j))));
+  const idle = area === "ТО" ? [] : js.filter((j) => stayed(j) && !xs.includes(j));
   if (!xs.length && !idle.length) return "";
   const lines = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
   const block = (j) => {
@@ -1366,7 +1423,7 @@ function chatText(sh, area) {
   return [area === "ТО" ? `${S.me.site} ТО` : `Карьер ${S.me.site}:`, idle.map((j) => `${j.gar}\nБез воздействия`).join("\n"), ...xs.map(block)].filter(Boolean).join("\n\n");
 }
 function openChatMsg(area) {
-  const sh = myShift(), text = chatText(sh, area);
+  const sh = S.past?.sh || myShift(), text = chatText(sh, area, S.past?.jobs);
   if (!text) return toast(`${area}: за эту смену записей нет`);
   $("#panel").innerHTML = `<div class="head"><span></span><b>Сообщение в чат<small>${area} · ${dm(sh.date)} · смена ${sh.n}</small></b><button class="nb r" data-act="close">Закрыть</button></div>
     <div style="font-size:15px;color:var(--muted);margin:12px 16px 8px">Текст можно поправить перед отправкой.</div>
@@ -1385,7 +1442,7 @@ async function moveSite(site, saved) {
     const { error } = await sb.rpc("set_my_site", { p_site: site });
     if (error) return toast(netErr(error) ? "Нет связи с сервером" : error.message, true);
   }
-  S.me.site = site; save("rz_me", S.me);
+  S.me.site = site; save("rz_me", S.me); S.past = null;
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
   render(); toast("Участок: " + site);
 }
@@ -1455,9 +1512,13 @@ document.addEventListener("click", async (ev) => {
       if (r.error) return toast(r.error.message, true);
       w.active = !w.active; save("rz_workers", S.workers); drawWkAdmin(); break; }
     case "logout": if (confirm("Выйти из приложения?")) { if (S.queue.length && !confirm(`Не отправлено записей: ${S.queue.length}. Они останутся на этом телефоне. Выйти?`)) return;
-      if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); showLogin(); } break;
+      if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); S.past = null; showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
     case "view": S.view = t.dataset.v; render(); scrollTo(0, 0); break;
+    case "pastpick": openPastPick(); break;
+    case "pastgo": openPast(+t.dataset.st); break;
+    case "pastback": S.past = null; render(); scrollTo(0, 0); break;
+    case "pastarea": S.past.area = t.dataset.v; render(); break;
     case "theme": save("rz_theme", isDark() ? "light" : "dark"); applyTheme(); break;
     case "new": openJob(null); break;
     case "job": openJob(t.dataset.id); break;
