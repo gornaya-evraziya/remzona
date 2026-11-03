@@ -302,7 +302,7 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 #pview { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.94); display: grid; place-items: center; }
 #pview[hidden] { display: none; }
 #pview img { max-width: 100vw; max-height: 84vh; object-fit: contain; }
-#pview .bar { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 10px; color: #ccc; font-size: 13px; }
+#pview .bar { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 0 10px; color: #ccc; font-size: 13px; }
 .online { font-size: 13px; color: var(--muted); margin: 10px 16px 0; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 5px; }
 /* выполненные работы -- как таблица тех. отчёта: описание, начало/окончание, ФИО */
@@ -1250,7 +1250,7 @@ function drawTmc() {
   box.innerHTML = hits.length ? `<div class="tmcres">${hits.map((i) => `<button data-act="tmc" data-i="${i}"><b>${esc(PRICE.rows[i].a)}</b> ${esc(PRICE.rows[i].n)}</button>`).join("")}</div>`
     : `<div class="warn">В прайсе не найдено — впишите вручную.</div>`;
 }
-// ---------- фото к записи: сжатие на телефоне, хранилище photos/<запись>/<uuid>.jpg, на ПК их забирает tools\get_photos.py ----------
+// ---------- фото к записи: сжатие на телефоне, хранилище photos/<запись>/<uuid>.jpg, на ПК их забирают tools\get_photos.py и приложение для ПК (PhotoSaver) ----------
 function addPhoto(p) { const a = S.photos.get(p.job_id) || []; if (!a.some((x) => x.id === p.id)) { a.push(p); S.photos.set(p.job_id, a); } }
 function dropPhoto(id) { for (const [k, a] of S.photos) { const b = a.filter((x) => x.id !== id); if (b.length) S.photos.set(k, b); else S.photos.delete(k); } }
 const findPhoto = (id) => [...S.photos.values()].flat().find((x) => x.id === id);
@@ -1305,8 +1305,46 @@ async function addPhotos(files) {
 function viewPhoto(p) {
   const v = $("#pview"), mine = !S.past && (p.staff_id === S.me.id || isAdmin());
   v.innerHTML = `<img src="${S.purl.get(p.path) || ""}" alt="Фото" data-act="pclose"><div class="bar"><span>${when(p.created_at)}</span>
+    <button class="btn small" data-act="psave" data-id="${p.id}">Сохранить</button>
     ${mine ? `<button class="btn small" data-act="pdel" data-id="${p.id}">Удалить</button>` : ""}<button class="btn small dark" data-act="pclose">Закрыть</button></div>`;
   v.hidden = false;
+  S.pblob = null; photoBlob(p).catch(() => {});   // заранее: на iPhone окно «Сохранить» открывается только сразу после нажатия
+}
+async function photoBlob(p) {
+  if (S.pblob?.id === p.id) return S.pblob.blob;
+  const url = S.purl.get(p.path);
+  if (!url) throw new Error("фото ещё не загрузилось");
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("фото не найдено на сервере");
+  const blob = await r.blob();
+  S.pblob = { id: p.id, blob };
+  return blob;
+}
+// имя файла: «209 03.11.2026 14-30.jpg»
+function photoName(p) {
+  const d = new Date(p.created_at), two = (n) => String(n).padStart(2, "0");
+  const gar = String(S.edit?.j?.gar || S.jobs.get(p.job_id)?.gar || "Фото").replace(/[\\/:*?"<>|]+/g, " ").trim();
+  return `${gar} ${two(d.getDate())}.${two(d.getMonth() + 1)}.${d.getFullYear()} ${two(d.getHours())}-${two(d.getMinutes())}.jpg`;
+}
+// на iPhone -- системное окно («Сохранить изображение» кладёт в «Фото»); на Android и ПК -- обычное скачивание файла
+async function savePhoto(id) {
+  const p = findPhoto(id); if (!p) return;
+  const ready = S.pblob?.id === id;
+  try {
+    const blob = await photoBlob(p), file = new File([blob], photoName(p), { type: "image/jpeg" });
+    if (/iphone|ipad/i.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); }
+      catch (e) {
+        if (e.name === "AbortError") return;
+        if (e.name === "NotAllowedError" && !ready) return toast("Фото загружено — нажмите «Сохранить» ещё раз");
+        throw e;
+      }
+      return;
+    }
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: file.name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  } catch (e) { toast("Фото не сохранено: " + (netErr(e) ? "нет связи" : e.message || e), true); }
 }
 async function delPhoto(id) {
   const p = findPhoto(id); if (!p || !confirm("Удалить фото? Если оно уже на ПК, там копия останется.")) return;
@@ -1587,6 +1625,7 @@ document.addEventListener("click", async (ev) => {
     case "close": closeSheet(); break;
     case "photo": { const p = findPhoto(t.dataset.id); if (p) viewPhoto(p); break; }
     case "pclose": $("#pview").hidden = true; break;
+    case "psave": savePhoto(t.dataset.id); break;
     case "pdel": delPhoto(t.dataset.id); break;
     case "gar": S.edit.gar = t.dataset.gar; $("#fGar").value = S.edit.gar; drawGars(); break;
     case "insp": { const e = S.edit, k = t.dataset.k; if (e.insp[k] === t.dataset.v) delete e.insp[k]; else e.insp[k] = t.dataset.v; drawInsp(); break; }

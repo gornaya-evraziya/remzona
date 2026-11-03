@@ -1,5 +1,5 @@
 // Ремзона ГЕ: оболочка приложения работает без связи (данные -- через очередь в index.html), показ уведомлений
-const CACHE = "remzona-v3";
+const CACHE = "remzona-v4";
 const SHELL = ["./index.html", "./manifest.webmanifest", "./logo.png", "./icon-192.png", "./icon-512.png",
   "./supabase.js"]; // supabase-js 2.45.4 (dist/umd из пакета npm) -- со своего сайта, без стороннего CDN
 
