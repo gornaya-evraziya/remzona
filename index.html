@@ -555,7 +555,7 @@ async function pushOff() {   // выход: этот телефон больше
 const fromBook = (j) => j.client_id?.startsWith("xl:") && j.rev === j.imported_rev;
 function announce(row, prev) {
   if (!S.me || row.mechanic_id === S.me.id || fromBook(row)) return;
-  const what = !prev ? "заезд" : (!prev.ended_at && row.ended_at) ? "выезд" : (!prev.ready_at && row.ready_at) ? "готова, ждёт: " + (row.wait_reason || "—").toLowerCase() : "дополнено";
+  const what = !prev ? (row.rev > 1 ? "обновлено" : "заезд") : (!prev.ended_at && row.ended_at) ? "выезд" : (!prev.ready_at && row.ready_at) ? "готова, ждёт: " + (row.wait_reason || "—").toLowerCase() : "дополнено";
   const msg = `${row.gar} — ${what}${row.mechanic_name ? " · " + row.mechanic_name : ""}`;
   toast(msg); beep(); navigator.vibrate?.([120, 60, 120]);
   // с Web Push уведомление при свёрнутом приложении покажет sw.js
@@ -566,7 +566,7 @@ function announce(row, prev) {
 // ---------- очередь записи (без связи копится, уходит при появлении) ----------
 function saveQ() { save("rz_queue", S.queue); renderConn(); }
 function enqueue(cid, data, isNew, id) {
-  const ex = S.queue.find((q) => q.cid === cid);
+  const ex = S.queue.find((q) => (cid ? q.cid === cid : !q.cid && q.id === id));
   if (ex) Object.assign(ex.data, data); else S.queue.push({ cid, id, isNew, data });
   saveQ(); render(); flush();
 }
@@ -627,7 +627,10 @@ const cacheJobs = () => save("rz_jobs", [...S.jobs.values()]);
 
 // ---------- данные ----------
 async function loadAll() {
-  const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
+  // без действующего входа сервер отдал бы пустые списки -- экран и кэш остались бы без машин и записей
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const since =new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
   const [m, j, st, inv, ph, wk] = await Promise.all([
     sb.from("machines").select("*").order("gar"),
     sb.from("jobs").select("*").eq("deleted", false).or(`ended_at.is.null,updated_at.gte.${since}`).order("started_at", { ascending: false }).limit(500),
@@ -870,7 +873,7 @@ function render() {
   $("#nav").hidden = !isAdmin();
   if (!isAdmin()) {
     h = S.past ? pastHtml() : `${head}<div class="dock"><button class="fab" data-act="new">${svg(ICON.plus)}Заезд машины</button></div>${installHint()}
-      ${views}${yardH}${outH}`;
+      ${views}${yardH}${outH}${TRASH}`;
   } else {
     const nc = newCount();
     const nav = [["feed", "Лента", ICON.feed, nc, ""], ["open", "Площадка", ICON.wrench, openJ.length, "dim"], ["staff", "Люди", ICON.people, S.staff.filter((s) => s.pending && s.site === S.me.site).length, ""], ["cars", "Машины", ICON.truck, 0, ""]];
@@ -890,9 +893,9 @@ function render() {
         ${S.me.site === EXCEL_SITE ? `<span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span>` : ""}</div>
         ${(() => { const on = S.staff.filter((s) => s.id !== S.me.id && S.online.has(s.id));
           return on.length ? `<div class="online"><span class="dot"></span>В приложении: ${on.map((s) => esc(s.name)).join(", ")}</div>` : ""; })()}
-        ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}`;
+        ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}${TRASH}`;
     } else if (S.tab === "open") {
-      h += `${head}${views}${yardH}${outH}`;
+      h += `${head}${views}${yardH}${outH}${TRASH}`;
     } else if (S.tab === "staff") {
       // владелец правит всех в отдельной карточке; другие администраторы -- PIN и отключение механиков (и свой PIN)
       // участок: администратор видит людей своего участка, владелец -- ещё и другого (отдельным списком)
@@ -940,6 +943,30 @@ function render() {
   keep.forEach(([id, v]) => { const el = document.getElementById(id); if (el?.closest("#app")) el.value = v; });
   if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
   renderConn(); hideSplash();
+}
+// ---------- недавно удалённые (03.11.2026, просьба пользователя: удалили заезд по ошибке -- вернуть): сервер хранит 30 суток ----------
+// вернуть может тот же, кто может удалить: администратор любую, механик свою (на сервере -- jobs_before); в книгу запись уходит снова
+const TRASH_DAYS = 30, TRASH = `<div style="text-align:center;margin-top:16px"><button class="link" data-act="trash">Недавно удалённые</button></div>`;
+const canTrash = (j) => isAdmin() || j.mechanic_id === S.me.id;
+async function openTrash() {
+  if (!navigator.onLine) return toast("Нет связи — список не загрузить", true);
+  const since = new Date(Date.now() - TRASH_DAYS * 86400000).toISOString();
+  const { data, error } = await sb.from("jobs").select("*").eq("deleted", true).eq("site", S.me.site).gte("deleted_at", since).order("deleted_at", { ascending: false }).limit(100);
+  if (error) return toast(netErr(error) ? "Нет связи — список не загрузить" : error.message, true);
+  S.trash = data;
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Недавно удалённые<small>хранятся ${TRASH_DAYS} суток</small></b><button class="nb r" data-act="close">Закрыть</button></div>
+    ${data.length ? `<div class="list" style="margin-top:12px">${data.map((j) => `<div><span class="grow"><b>${esc(j.gar)}</b> · ${esc(j.kind)} · ${j.ended_at ? `${fmt(j.started_at)} – ${fmt(j.ended_at)}` : `заезд ${fmt(j.started_at)}`}
+        <br><small style="color:var(--muted)">${esc(j.fault || j.work || "без описания")}<br>Удалена ${when(j.deleted_at)}${j.deleted_by ? ` · ${esc(j.deleted_by)}` : ""}</small></span>
+        ${canTrash(j) ? `<button class="btn small dark" data-act="restore" data-id="${esc(j.id)}">Вернуть</button>` : `<small style="color:var(--muted)">вернёт автор или администратор</small>`}</div>`).join("")}</div>`
+      : `<div class="empty" style="margin-top:12px">Удалённых записей нет</div>`}`;
+  $("#sheet").hidden = false;
+}
+function restoreJob(id) {
+  const j = S.trash?.find((x) => x.id === id); if (!j) return;
+  const dup = !j.ended_at && allJobs().find((x) => !x.ended_at && x.gar === j.gar);
+  if (dup && !confirm(`Машина ${j.gar} сейчас на площадке (заезд ${fmt(dup.started_at)}). Всё равно вернуть запись?`)) return;
+  enqueue(j.client_id || null, { deleted: false }, false, j.id);
+  S.trash = null; closeSheet(); toast(`${j.gar}: запись возвращена`);
 }
 // ---------- просмотр прошлой смены (решение пользователя): только просмотр, грузится с сервера, S.past не сохраняется ----------
 function openPastPick() {
@@ -1376,8 +1403,8 @@ function saveJob(exitNow) {
   for (const [k] of INSP) if (e.insp[k]) insp[k] = e.insp[k];
   for (const [k, t] of PINS) {
     const v = String(e.insp[k] ?? "").replace(",", ".").trim();
-    if (v && isNaN(+v)) return toast(`Шкворень ${t} — числом`, true);
-    if (v) insp[k] = v;
+    if (v && !/^(\d+(\.\d*)?|\.\d+)$/.test(v)) return toast(`Шкворень ${t} — числом`, true);
+    if (v) insp[k] = v.replace(/^\./, "0.");   // «,89» -- как 0.89: в таблицу отметок показание идёт текстом
   }
   // как в книге ввода (CapFirst): первая буква каждой строки неисправности и работы -- заглавная, строка с цифры не трогается
   const cap = (s) => s.trim().replace(/(^|\n)(\s*)([a-zа-яё])/g, (m, a, b, c) => a + b + c.toUpperCase());
@@ -1578,7 +1605,9 @@ document.addEventListener("click", async (ev) => {
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
     // удалить может администратор и механик -- свою запись (внёс по ошибке); чужую сервер не даст (jobs_before)
-    case "deljob": { const j = S.edit.j; if (!confirm(`Удалить запись по машине ${j.gar}? Она пропадёт у всех.`)) return;
+    case "trash": openTrash(); break;
+    case "restore": restoreJob(t.dataset.id); break;
+    case "deljob": { const j = S.edit.j; if (!confirm(`Удалить запись по машине ${j.gar}? Она пропадёт у всех. Вернуть можно ${TRASH_DAYS} суток — «Недавно удалённые» внизу экрана.`)) return;
       enqueue(j.client_id || null, { deleted: true }, false, j.id.startsWith("q:") ? null : j.id); closeSheet(); toast(`${j.gar}: запись удалена`); break; }
     case "seen": S.seen = Date.now(); save("rz_seen", S.seen); document.title = "Ремзона ГЕ"; render(); break;
     case "notif": if (pushOk()) await pushOn(true).catch((e) => toast("Уведомления: " + (e.message || e), true));
