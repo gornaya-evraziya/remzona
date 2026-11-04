@@ -17,7 +17,8 @@ self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
   if (e.request.method !== "GET" || u.origin !== location.origin) return;
   // приложение (…/remzona/, …/index.html, ?join=…) -- одна страница в кэше; прочие адреса -- как есть
-  const page = e.request.mode === "navigate" && /\/(index\.html)?$/.test(u.pathname), key = page ? "./index.html" : e.request;
+  // ?check=1 -- проверка новой версии из открытого приложения (checkUpdate): как открытие страницы, сообщит «updated»
+  const page = (e.request.mode === "navigate" || u.searchParams.has("check")) && /\/(index\.html)?$/.test(u.pathname), key = page ? "./index.html" : e.request;
   e.respondWith(caches.open(CACHE).then(async (c) => {
     const hit = await c.match(key, { ignoreSearch: true });
     const old = page && hit ? hit.clone() : null;   // копия -- сам hit уходит браузеру, его тело потом не прочитать

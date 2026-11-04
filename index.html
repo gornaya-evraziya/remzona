@@ -397,7 +397,9 @@ const areaOf = (j) => j.area || (j.kind === "ТО" ? "ТО" : "Площадка"
 
 // запрос к серверу -- не дольше 15 с: при плохой связи не висим (ошибка «нет связи», очередь повторит)
 const fetchT = (url, opt = {}) => {
-  const ac = new AbortController(), t = setTimeout(() => ac.abort(), 15000);
+  // фото и прайс при плохой связи идут дольше -- 60 с (04.11.2026: фото 600 КБ не успевало за 15 с на медленном канале)
+  const ms = /\/storage\/v1\/object\/photos\/|\/rpc\/tmc_list/.test(String(url)) ? 60000 : 15000;
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms);
   opt.signal?.addEventListener("abort", () => ac.abort());
   return fetch(url, { ...opt, signal: ac.signal })
     .catch((e) => { throw ac.signal.aborted ? new TypeError("Failed to fetch (timeout)") : e; }).finally(() => clearTimeout(t));
@@ -592,7 +594,8 @@ async function sendQueue() {
       else if (q.cid) res = await sb.from("jobs").update(q.data).eq("client_id", q.cid).select().single();
       else res = await sb.from("jobs").update(q.data).eq("id", q.id).select().single();
       if (res.error) {
-        if (netErr(res.error) || authErr(res)) break;
+        // сбой сервера (5xx), перегрузка, таймаут -- запись не терять, повторить (04.11.2026: раньше такая запись пропадала из очереди)
+        if (netErr(res.error) || authErr(res) || res.status >= 500 || res.status === 429 || res.status === 408) break;
         // PGRST116 -- записи на сервере уже нет (удалили / убрана после переноса в книгу)
         toast(res.error.code === "PGRST116" && !q.isNew ? `${q.data.gar || "Запись"}: запись уже удалена — изменения не сохранены`
           : "Не сохранено (" + (q.data.gar || "") + "): " + res.error.message, true);
@@ -653,6 +656,7 @@ async function loadAll() {
 }
 function subscribe() {
   if (S.channel) sb.removeChannel(S.channel);
+  const tok = S.rtTok = uuid();   // сообщение о закрытии прежнего канала не должно менять состояние нового
   S.channel = sb.channel("jobs-" + uuid()).on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (p) => {
     if (p.eventType === "DELETE") { S.jobs.delete(p.old?.id); }
     else {
@@ -664,7 +668,7 @@ function subscribe() {
   }).on("postgres_changes", { event: "*", schema: "public", table: "photos" }, (p) => {
     if (p.eventType === "DELETE") dropPhoto(p.old?.id); else if (p.new.job_id) addPhoto(p.new);
     renderSoft(); drawPhotos();
-  }).subscribe((status) => { S.rt = status; renderConn(); });
+  }).subscribe((status) => { if (tok === S.rtTok) { S.rt = status; renderConn(); } });
   // кто сейчас в приложении (Realtime Presence): в канале участка только id сотрудника, имена -- из списка у администратора
   if (S.pres) sb.removeChannel(S.pres);
   const pres = S.pres = sb.channel("online-" + S.me.site, { config: { presence: { key: S.me.id } } })
@@ -743,7 +747,7 @@ async function tryPin() {
   const p = L.pick, pin = L.pin;
   L.err = "Вход…"; renderLogin();
   const { error } = await sb.auth.signInWithPassword({ email: `${p.login}@remzona.app`, password: pinPassword(pin, p.login) });
-  if (error) { L.pin = ""; L.err = /invalid/i.test(error.message) ? "Неверный PIN" : netErr(error) ? "Нет связи с сервером" : error.message; renderLogin(); return; }
+  if (error) { L.pin = ""; L.err = /invalid/i.test(error.message) ? "Неверный PIN" : netErr(error) ? "Нет связи с сервером" : error.status === 429 || /rate limit|too many/i.test(error.message) ? "Слишком много попыток — подождите несколько минут" : error.message; renderLogin(); return; }
   save("rz_pick", p); L.pin = ""; L.err = "";
   await enter();
 }
@@ -1323,6 +1327,7 @@ async function photoUrls(ps) {   // ссылки на просмотр -- на 6
   need.forEach((x) => S.purl.set(x, ""));
   const { data } = await sb.storage.from("photos").createSignedUrls(need, 6 * 3600);
   (data || []).forEach((x) => x.signedUrl && S.purl.set(x.path, x.signedUrl));
+  need.forEach((x) => { if (!S.purl.get(x)) S.purl.delete(x); });   // не получили ссылку (плохая связь) -- при следующем показе запросить снова, а не ждать 5 ч
   if (data?.some((x) => x.signedUrl)) drawPhotos();
 }
 async function shrink(file) {   // до 1600 px, JPEG 0.8: ~200–400 КБ вместо 3–5 МБ; поворот по EXIF делает браузер
@@ -1481,6 +1486,7 @@ function saveJob(exitNow) {
   // таблицы считают по минутам: выезд -- хотя бы на минуту позже заезда
   if (ended && Math.floor(new Date(ended) / 60000) <= Math.floor(new Date(started) / 60000)) return toast("Выезд должен быть позже заезда (хотя бы на минуту)", true);
   if (new Date(started) > new Date(Date.now() + 10 * 60000)) return toast("Время заезда в будущем — проверьте", true);
+  if (ended && new Date(ended) > new Date(Date.now() + 10 * 60000)) return toast("Время выезда в будущем — проверьте", true);
   const ready = j ? fromInput($("#fReady").value) : null;
   const wait = !ready ? "" : e.wait === "Другое" ? $("#fWaitOther").value.trim() : e.wait;
   if (ready && !wait) return toast("Укажите, чего ждёт машина", true);
@@ -1488,7 +1494,7 @@ function saveJob(exitNow) {
   if (ready && ended && new Date(ended) < new Date(ready)) return toast("Выезд раньше готовности — проверьте время", true);
   if (ready && new Date(ready) > new Date(Date.now() + 10 * 60000)) return toast("Время готовности в будущем — проверьте", true);
   const motoS = $("#fMoto").value.replace(",", ".").trim();
-  if (motoS && isNaN(+motoS)) return toast("Моточасы — числом", true);
+  if (motoS && !/^\d+(\.\d+)?$/.test(motoS)) return toast("Моточасы — числом", true);
   const insp = {};
   for (const [k] of INSP) if (e.insp[k]) insp[k] = e.insp[k];
   for (const [k, t] of PINS) {
@@ -1596,6 +1602,7 @@ async function moveSite(site, saved) {
   }
   S.me.site = site; save("rz_me", S.me); S.past = null;
   try { await loadAll(); } catch (e) { if (!netErr(e)) toast("Ошибка загрузки: " + e.message, true); }
+  subscribe();   // «кто в приложении» -- канал нового участка
   render(); toast("Участок: " + site);
 }
 async function reloadStaff() { const r = await sb.from("staff").select("*").order("role", { ascending: false }).order("name"); if (!r.error) S.staff = r.data; render(); }
@@ -1727,7 +1734,7 @@ document.addEventListener("click", async (ev) => {
       if (r.error) toast(r.error, true); else if (!$("#sheet").hidden) closeSheet(); reloadStaff(); break; }
     case "staff": openStaff(t.dataset.id); break;
     case "serole": S.edit.role = t.dataset.v; document.querySelectorAll("#seRole .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
-    case "savestaff": { const s = S.edit.staff, typed = $("#seName").value.trim();
+    case "savestaff": { const s = S.edit.staff, newSite = S.edit.site, typed = $("#seName").value.trim();
       // прежнее имя не трогаем (правят роль / участок), новое -- только «Фамилия И.О.»
       const name = typed === s.name ? typed : fio(typed);
       if (!name) return toast(FIO_ERR, true);
@@ -1735,7 +1742,7 @@ document.addEventListener("click", async (ev) => {
       if (r.error) return toast(r.error, true);
       if (s.id === S.me.id) { S.me.name = name; save("rz_me", S.me); $("#whoName").textContent = name; }
       toast(`${name}: сохранено`); closeSheet();
-      if (s.id === S.me.id && S.edit.site !== S.me.site) await moveSite(S.edit.site, true); else reloadStaff();
+      if (s.id === S.me.id && newSite !== S.me.site) await moveSite(newSite, true); else reloadStaff();
       break; }
     case "sesite": S.edit.site = t.dataset.v; document.querySelectorAll("#seSite .chip").forEach((c) => c.classList.toggle("on", c === t)); break;
     case "ssite": L.site = t.dataset.v; document.querySelectorAll("#sSite button").forEach((c) => c.classList.toggle("on", c === t)); break;
@@ -1772,12 +1779,37 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("#pview").hidden) return void ($("#pview").hidden = true);
   if (e.key === "Escape" && !$("#sheet").hidden) closeSheet();
 });
-$("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+// случайное касание мимо листа не закрывает заполняемую карточку (вписанное пропало бы); закрыть -- «Отмена»
+$("#sheet").addEventListener("click", (e) => { if (e.target.id === "sheet" && !S.edit?.can) closeSheet(); });
+// сбой в коде -- сообщение на экране, а не молчаливо несработавшая кнопка (ошибки связи показывают сами действия)
+const showBug = (e) => { const m = String(e?.message || e || ""); if (m && !netErr(e) && !/ResizeObserver|Script error/i.test(m)) toast("Ошибка: " + m, true); };
+window.addEventListener("error", (e) => showBug(e.error || e.message));
+window.addEventListener("unhandledrejection", (e) => showBug(e.reason));
 $("#tpick").addEventListener("click", (e) => { if (e.target.id === "tpick") closeTp(); });
 $("#pview").addEventListener("click", (e) => { if (e.target.id === "pview") e.target.hidden = true; });
 
 // связь появилась / приложение снова на экране -- отправить очередь и обновить
-async function refresh() { if (!S.me || !navigator.onLine) return; await retryLater(true); try { await loadAll(); renderSoft(); } catch {} loadPrice(); markSeen(); }
+async function refresh() {
+  if (!S.me || !navigator.onLine) return;
+  await retryLater(true);
+  try { await loadAll(); renderSoft(); } catch {}
+  loadPrice(); markSeen(); liveAgain(); checkUpdate();
+  // приложение подолгу открыто (ПК, телефон на зарядке): новая версия -- как только никто не заполняет форму и очередь пуста
+  const a = document.activeElement;
+  if (S.update && $("#sheet").hidden && !S.queue.length && !S.past && !a?.matches?.("input, select, textarea")) location.reload();
+}
+// онлайн-обновления: запуск без связи или канал оборвался -- подключить снова (иначе данные только раз в 2 минуты и «подключение…» в шапке)
+async function liveAgain() {
+  if (S.rt === "SUBSCRIBED" || S.rtTry) return;
+  S.rtTry = true;
+  try { const { data: { session } } = await sb.auth.getSession(); if (session && S.me) subscribe(); }
+  finally { setTimeout(() => { S.rtTry = false; }, 20000); }   // подключение идёт несколько секунд -- не начинать заново
+}
+// раз в час -- есть ли новая версия сайта: sw.js сравнит страницу и пришлёт «updated» (иначе приложение, которое не закрывают, остаётся старым)
+function checkUpdate() {
+  if (!navigator.serviceWorker?.controller || Date.now() - (S.updAt || 0) < 3600000) return;
+  S.updAt = Date.now(); fetch("index.html?check=1").catch(() => {});
+}
 // «был в приложении N мин назад» у администратора: при входе и каждом обновлении (раз в 2 мин, пока приложение на экране)
 function markSeen() { if (S.me && !document.hidden) sb.rpc("seen").then(() => {}, () => {}); }
 window.addEventListener("online", () => { renderConn(); refresh(); if (S.me) subscribe(); });
