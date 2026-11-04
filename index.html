@@ -819,7 +819,7 @@ function card(j, opts = {}) {
   const m = S.machines.find((x) => x.gar === j.gar);
   // opts.at -- конец прошлой смены: что было после него, в этой смене ещё не случилось
   const at = opts.at, open = !j.ended_at || (at && new Date(j.ended_at) >= at);
-  const isNew = opts.feed && j.mechanic_id !== S.me.id && new Date(j.updated_at).getTime() > S.seen;
+  const isNew = opts.feed && j.mechanic_id !== S.me.id && !fromBook(j) && new Date(j.updated_at).getTime() > S.seen;
   const ready = !!j.ready_at && !(at && new Date(j.ready_at) >= at), why = esc((j.wait_reason || "").toLowerCase());
   // справа -- время: на площадке / ждёт / сколько стояла; под видом работ -- статус и механик
   const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(j.ready_at, at)}">${clock(j.ready_at, at)}</span>`
