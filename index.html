@@ -92,6 +92,10 @@ h2 .n.red { background: var(--red); color: #fff; border-radius: 9px; padding: 0 
 .pastday { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }
 .pastday b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .pastday small { color: var(--muted); font-size: 14px; flex: 1; }
+.pastq { padding: 8px 16px; }
+.fdate { font-size: 15px; font-weight: 600; margin: 20px 16px 2px; }
+.fdate small { color: var(--muted); font-weight: 400; font-size: 13px; }
+.fshift { font-size: 13px; font-weight: 600; color: var(--muted); margin: 8px 16px 5px; }
 .shift .site { border: 0; background: none; color: var(--red); font-size: 15px; padding: 0 10px; min-height: 36px; margin-left: auto; cursor: pointer; white-space: nowrap; }
 .shift .site::after { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 0 1px 6px;
   border-right: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); opacity: .6; }
@@ -833,7 +837,7 @@ function card(j, opts = {}) {
   if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
-  return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="job" data-id="${esc(j.id)}">
+  return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="${opts.act || "job"}" data-id="${esc(j.id)}">
     <div class="gar">${esc(j.gar)}<small>${esc(m?.model || "")}</small></div>
     <div class="body"><div class="top"><span class="kind">${esc(j.kind)}</span>${tm}</div>
     <div class="st">${st} · ${esc(j.mechanic_name || "—")}</div>
@@ -841,6 +845,27 @@ function card(j, opts = {}) {
     ${b.length ? `<div class="badges">${b.join("")}</div>` : ""}</div></div>`;
 }
 const list = (xs, opts, empty) => (xs.length ? `<div class="group">${xs.map((j) => card(j, opts)).join("")}</div>` : `<div class="empty">${empty}</div>`);
+const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+function dayTitle(d) {
+  const dt = `${d.getDate()} ${MONTHS[d.getMonth()]}`, y = new Date(); y.setDate(y.getDate() - 1);
+  const w = d.toDateString() === new Date().toDateString() ? "Сегодня" : d.toDateString() === y.toDateString() ? "Вчера" : "";
+  return `<div class="fdate">${w ? `${w} <small>${dt}</small>` : dt}</div>`;
+}
+// лента (04.11.2026, решение пользователя по макету): дата, внутри смены; ночь -- к дате окончания, как в таблицах; порядок прежний -- по последнему изменению
+function feedHtml(xs) {
+  if (!xs.length) return `<div class="empty">Пока пусто</div>`;
+  const gs = new Map();
+  for (const j of xs) {
+    const sh = shiftOf(new Date(j.updated_at || j.started_at || Date.now())), k = shKey(sh);
+    if (!gs.has(k)) gs.set(k, { sh, js: [] });
+    gs.get(k).js.push(j);
+  }
+  let last = "";
+  return [...gs.values()].map(({ sh, js }) => {
+    const d = sh.date.toDateString(), top = d === last ? "" : dayTitle(sh.date); last = d;
+    return `${top}<div class="fshift">${sh.n === 1 ? "Ночь" : "День"} · ${js.length}</div>${list(js, { feed: true }, "")}`;
+  }).join("");
+}
 function installHint() {
   if (load("rz_hint_off", false) || matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "";
   const ios = /iphone|ipad/i.test(navigator.userAgent);
@@ -893,7 +918,7 @@ function render() {
         ${S.me.site === EXCEL_SITE ? `<span style="margin-left:auto;font-size:13px;color:var(--muted)">не в таблице: ${notIn}</span>` : ""}</div>
         ${(() => { const on = S.staff.filter((s) => s.id !== S.me.id && S.online.has(s.id));
           return on.length ? `<div class="online"><span class="dot"></span>В приложении: ${on.map((s) => esc(s.name)).join(", ")}</div>` : ""; })()}
-        ${installHint()}<h2>Последние события</h2>${list(feed, { feed: true }, "Пока пусто")}${TRASH}`;
+        ${installHint()}<h2>Последние события</h2>${feedHtml(feed)}${TRASH}`;
     } else if (S.tab === "open") {
       h += `${head}${views}${yardH}${outH}${TRASH}`;
     } else if (S.tab === "staff") {
@@ -978,8 +1003,35 @@ function openPastPick() {
     const b = (st, t) => `<button class="chip ${st.getTime() === on ? "on" : ""}" data-act="pastgo" data-st="${st.getTime()}" ${st.getTime() > now ? "disabled" : ""}>${t}</button>`;
     return `<div class="pastday"><b>${dm(d)}</b><small>${DAYS[d.getDay()]}</small>${b(night, "Ночь")}${b(day, "День")}</div>`;
   }).join("");
-  $("#panel").innerHTML = `<div class="head"><span></span><b>Прошлые смены<small>за 30 суток, только просмотр</small></b><button class="nb r" data-act="close">Закрыть</button></div>${rows}`;
+  $("#panel").innerHTML = `<div class="head"><span></span><b>Прошлые смены<small id="pastSub"></small></b><button class="nb r" data-act="close">Закрыть</button></div>
+    <div class="pastq"><input class="inp" id="pastQ" inputmode="numeric" placeholder="Номер машины" autocomplete="off" value="${esc(S.found?.gar || "")}"></div>
+    <div id="pastFound"></div><div id="pastDays">${rows}</div>`;
   $("#sheet").hidden = false;
+  $("#pastQ").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); findGar(e.target.value); });
+  drawFound();
+}
+// поиск в истории по машине (04.11.2026, решение пользователя по макету): все записи машины на сервере, новые сверху; карточка только для просмотра
+function findGar(q) {
+  clearTimeout(S.foundT);
+  if (q.length < 3) { S.found = null; return drawFound(); }
+  S.foundT = setTimeout(async () => {
+    if (!navigator.onLine) { S.found = { gar: q, jobs: [], err: "Нет связи — историю не загрузить" }; return drawFound(); }
+    const { data, error } = await sb.from("jobs").select("*").eq("deleted", false).eq("site", S.me.site).eq("gar", q).order("started_at", { ascending: false }).limit(100);
+    if ($("#pastQ")?.value !== q) return;   // пока ждали ответ, номер изменили или окно закрыли
+    S.found = error ? { gar: q, jobs: [], err: netErr(error) ? "Нет связи — историю не загрузить" : error.message } : { gar: q, jobs: data };
+    drawFound();
+  }, 300);
+}
+function drawFound() {
+  const box = $("#pastFound"), f = S.found; if (!box) return;
+  $("#pastDays").hidden = !!f;
+  if (!f) { $("#pastSub").textContent = "за 30 суток, только просмотр"; box.innerHTML = ""; return; }
+  const n = f.jobs.length, w = n % 10 === 1 && n % 100 !== 11 ? "запись" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "записи" : "записей";
+  $("#pastSub").textContent = f.err ? `машина ${f.gar}` : `машина ${f.gar}: ${n} ${w}`;
+  if (f.err || !n) { box.innerHTML = `<div class="empty">${esc(f.err || `Записей по машине ${f.gar} нет`)}</div>`; return; }
+  const days = new Map();
+  for (const j of f.jobs) { const d = new Date(j.started_at), k = d.toDateString(); if (!days.has(k)) days.set(k, { d, js: [] }); days.get(k).js.push(j); }
+  box.innerHTML = [...days.values()].map(({ d, js }) => `${dayTitle(d)}${list(js, { act: "foundjob" }, "")}`).join("");
 }
 // запись глазами прошлой смены: работы с d другой смены не показываем; работы без d (внесены до 03.11.2026) -- во всех сменах
 function pastJob(j, key) {
@@ -1025,14 +1077,14 @@ function drawWkAdmin() {
 }
 
 // ---------- карточка заезда ----------
-function openJob(id) {
-  const j = id ? (S.past ? S.past.jobs : allJobs()).find((x) => x.id === id) : null;
+function openJob(id, found) {   // found -- записи поиска в истории: только просмотр, «Назад» к результатам
+  const j = id ? (found || (S.past ? S.past.jobs : allJobs())).find((x) => x.id === id) : null;
   // ремонт идёт несколько смен: дополнить и закрыть может любой сотрудник участка (как на сервере, jobs_update); прошлая смена -- только просмотр
-  const can = !S.past && (!j || j.site === S.me.site || j.mechanic_id === S.me.id);
+  const can = !found && !S.past && (!j || j.site === S.me.site || j.mechanic_id === S.me.id);
   // rev -- версия записи на сервере при открытии: при сохранении проверить, не изменил ли её кто-то другой
   // новая запись -- на вкладку, откуда создана (у администратора заезд из «Ленты» -- Площадка); на ТО вид по умолчанию «ТО», можно сменить
   const area = j ? areaOf(j) : !isAdmin() && S.view === "to" ? "ТО" : "Площадка";
-  S.edit = { j, can, gar: j?.gar || "", area, kind: j?.kind || (area === "ТО" ? "ТО" : "Ремонт"), steps: stepsOf(j), insp: { ...(j?.inspect || {}) }, rev: j && S.jobs.get(j.id)?.rev };
+  S.edit = { j, can, ro: !!found, gar: j?.gar || "", area, kind: j?.kind || (area === "ТО" ? "ТО" : "Ремонт"), steps: stepsOf(j), insp: { ...(j?.inspect || {}) }, rev: j && S.jobs.get(j.id)?.rev };
   const dis = can ? "" : "disabled";
   // при заезде нужны только номер, вид, время и неисправность -- остальное свёрнуто
   const more = `<div class="sec"><h3>Выполнены работы</h3><span class="rows" id="stRows"></span></div><div id="steps"></div>
@@ -1051,10 +1103,10 @@ function openJob(id) {
     <input class="inp" id="fWaitOther" style="margin-top:8px" placeholder="Чего ждёт машина" value="${other ? esc(wr) : ""}" ${dis} ${S.edit.wait === "Другое" ? "" : "hidden"}>
     <div class="timebox" style="margin-top:8px"><input type="hidden" id="fReady" value="${toInput(j.ready_at)}">${tBtn("fReady", "Готова с", dis)}
       <button class="btn" data-act="unready" ${dis}>Не ждёт</button></div>` : "";
-  $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="close">${can ? "Отмена" : "Закрыть"}</button>
+  $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="${found ? "foundback" : "close"}">${can ? "Отмена" : found ? "Назад" : "Закрыть"}</button>
       <b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}${j ? `<small>${esc(j.mechanic_name || "")}</small>` : ""}</b>
       ${j && can ? `<button class="nb r" data-act="savejob">Сохранить</button>` : "<span></span>"}</div>
-    ${can ? "" : `<div class="warn">${S.past ? "Прошлая смена" : "Запись другого участка"} — только просмотр.</div>`}
+    ${can ? "" : `<div class="warn">${found ? "Из истории" : S.past ? "Прошлая смена" : "Запись другого участка"} — только просмотр.</div>`}
     ${!j ? "" : j.id.startsWith("q:") ? `<div class="pnote">📷 Фото — когда запись отправится на сервер</div>`
       : `<label class="f">Фото</label><div class="photos" id="fPhotos"></div>`}
     <label class="f">Гаражный номер</label>
@@ -1075,7 +1127,7 @@ function openJob(id) {
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input type="hidden" id="fEnd" value="${toInput(j.ended_at)}">${tBtn("fEnd", "Время выезда", dis)}
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
-    ${j && !S.past && (isAdmin() || j.mechanic_id === S.me.id) ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
+    ${j && !found && !S.past && (isAdmin() || j.mechanic_id === S.me.id) ? `<button class="delrow" data-act="deljob">Удалить запись</button>` : ""}
     ${can ? `<div class="actions bar">${j ? `<button class="btn ${j.ended_at ? "red" : ""}" data-act="savejob">Сохранить</button>${!j.ended_at ? `<button class="btn red" data-act="exit">Выехала сейчас</button>` : ""}`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
@@ -1107,7 +1159,7 @@ function drawGars() {
 }
 function drawTo() {
   $("#toChips").innerHTML = S.edit.kind === "ТО" && S.edit.can ?
-    [1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
+    [0, 1, 2, 3, 4, 5, 6].map((n) => `<button class="chip" data-act="to" data-v="ТО-${n}">ТО-${n}</button>`).join("") : "";
 }
 // ---------- осмотр на ТО (03.11.2026, решение пользователя, этап 1 отметок): jobs.inspect, в сообщение ТО; в книгу не идёт, rev не меняет ----------
 // на Площадке блока нет, отметки записи сохраняются (вернётся на ТО -- на месте)
@@ -1303,7 +1355,7 @@ async function addPhotos(files) {
   if (ok) toast(ok === 1 ? "Фото отправлено" : `Фото отправлено: ${ok}`);
 }
 function viewPhoto(p) {
-  const v = $("#pview"), mine = !S.past && (p.staff_id === S.me.id || isAdmin());
+  const v = $("#pview"), mine = !S.past && !S.edit?.ro && (p.staff_id === S.me.id || isAdmin());
   v.innerHTML = `<img src="${S.purl.get(p.path) || ""}" alt="Фото" data-act="pclose"><div class="bar"><span>${when(p.created_at)}</span>
     <button class="btn small" data-act="psave" data-id="${p.id}">Сохранить</button>
     ${mine ? `<button class="btn small" data-act="pdel" data-id="${p.id}">Удалить</button>` : ""}<button class="btn small dark" data-act="pclose">Закрыть</button></div>`;
@@ -1615,7 +1667,9 @@ document.addEventListener("click", async (ev) => {
       if (S.channel) sb.removeChannel(S.channel); if (S.pres) sb.removeChannel(S.pres); await pushOff(); await sb.auth.signOut(); localStorage.removeItem("rz_me"); S.past = null; showLogin(); } break;
     case "tab": S.tab = t.dataset.tab; render(); scrollTo(0, 0); break;
     case "view": S.view = t.dataset.v; render(); scrollTo(0, 0); break;
-    case "pastpick": openPastPick(); break;
+    case "pastpick": S.found = null; openPastPick(); break;
+    case "foundjob": openJob(t.dataset.id, S.found.jobs); break;
+    case "foundback": S.edit = null; openPastPick(); break;
     case "pastgo": openPast(+t.dataset.st); break;
     case "pastback": S.past = null; render(); scrollTo(0, 0); break;
     case "pastarea": S.past.area = t.dataset.v; render(); break;
