@@ -191,7 +191,7 @@ main:has(.fab) ~ #toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 label.f { display: block; margin: 22px 16px 7px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
 .inp { width: 100%; min-height: 44px; border: 0; border-radius: 10px; padding: 11px 16px; background: var(--card); font-size: 17px; color: var(--text); }
 .inp::placeholder { color: var(--muted2); }
-textarea.inp { min-height: 96px; resize: vertical; line-height: 1.35; }
+textarea.inp { min-height: 137px; resize: vertical; line-height: 1.35; }
 .inp:focus { outline: 0; }
 .inp:disabled { color: var(--muted); opacity: 1; }
 /* выбор: «таблетки»; одиночный выбор (вид работ, роль, участок) -- сегменты */
@@ -325,7 +325,23 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 .work .wh .iconbtn { margin: 0 -10px 0 auto; width: 40px; height: 40px; font-size: 17px; color: var(--muted); }
 .work label.f { margin: 14px 0 6px; }
 .work .inp { background: var(--chip); }
-.work textarea.inp { min-height: 96px; }
+.work textarea.inp { min-height: 137px; }
+/* простои не по нашей вине: строка в карточке и отдельный экран (макет «Простои», вариант Б) */
+.panel[hidden] { display: none; }
+.idlesum { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; }
+.idlesum .t { flex: 1; min-width: 0; }
+.idlesum .t small { display: block; font-size: 13px; color: var(--muted); }
+.idlesum .d { font-size: 15px; font-weight: 600; color: var(--amber); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.idlerow { display: flex; align-items: center; gap: 10px; min-height: 52px; cursor: pointer; }
+.idlerow .t { flex: 1; min-width: 0; }
+.idlerow .t b { display: block; font-size: 15px; font-weight: 600; color: var(--strong); }
+.idlerow .t small { display: block; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.idlerow .d { font-size: 15px; font-weight: 600; color: var(--amber); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.idlerow .d.go { color: var(--red); }
+.idlelab { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+.idlebtns { display: flex; gap: 8px; margin-top: 12px; } .idlebtns .btn { flex: 1; }
+.idletot { display: flex; justify-content: space-between; margin: 10px 16px 0; font-size: 15px; color: var(--muted); }
+.idletot b { color: var(--strong); font-variant-numeric: tabular-nums; }
 .work .pnote { margin-left: 0; }
 .tmw { display: grid; gap: 8px; }
 .tmw .cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -371,7 +387,7 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 </header>
 <div id="splash" aria-hidden="true"><div class="sp"><img class="logo" src="logo.png" alt=""><div class="bar"><i></i></div><div class="t">Ремзона</div></div></div>
 <main id="app"></main>
-<div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<div id="sheet" hidden><div class="panel" id="panel"></div><div class="panel" id="idlePanel" hidden></div></div>
 <div id="tpick" hidden><div class="tsheet"><div class="tbar"><button class="nb" data-act="tpcancel">Отмена</button><b id="tpTitle"></b><button class="nb r" data-act="tpdone">Готово</button></div>
   <div class="wheels" id="wheels"></div><button class="tclear" id="tpClear" data-act="tpclear" hidden>Очистить</button></div></div>
 <div id="pview" hidden></div>
@@ -385,7 +401,12 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 const SB_URL = "https://inprxlthecccuvkjpvpo.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHJ4bHRoZWNjY3V2a2pwdnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzM1MjYsImV4cCI6MjEwODgwOTUyNn0.IucSKrdhmzzSze-VEn2Za7Bmy2BvYTeCKnnEs6LPfjs";
 const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
-const WAITS = ["Нет водителя", "Распоряжение диспетчера", "Пересменка / обед"];   // готова, ждёт не по нашей вине; + «Другое» текстом
+// простой не по нашей вине (решение пользователя 04.11.2026, заменил «Готова к выезду»): интервалы в jobs.idle [{u, r, from, to, n}]; расчёт -- книга «Простои». Прежние ready_at, wait_reason сохраняются и показываются
+const IDLE = ["Ожидание водителя", "Ожидание оператора", "Ожидание тягача", "Ожидание запчастей / масла", "Ожидание мойки ДВС", "Распоряжение диспетчера", "Пересменка / обед", "Отогрев и запуск после ШРУ", "Другое"];
+const idleOf = (j) => (Array.isArray(j?.idle) ? j.idle : []);
+const idleMin = (x) => (x.to ? Math.max(0, Math.floor(new Date(x.to) / 60000) - Math.floor(new Date(x.from) / 60000)) : 0);
+const idleSum = (list) => list.reduce((s, x) => s + idleMin(x), 0);
+const minTxt = (m) => (m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`);
 // участки: каждый видит работы своего участка (ограничение на сервере), участок меняет сам; в книгу Excel -- только Благодатный
 const SITES = ["Благодатный", "Восточный"], EXCEL_SITE = "Благодатный";
 const CREDIT = `<div class="credit">Разработчик — Умаров Р.К.</div>`;   // подпись создателя (решение пользователя 31.10.2026)
@@ -824,12 +845,15 @@ function card(j, opts = {}) {
   // opts.at -- конец прошлой смены: что было после него, в этой смене ещё не случилось
   const at = opts.at, open = !j.ended_at || (at && new Date(j.ended_at) >= at);
   const isNew = opts.feed && j.mechanic_id !== S.me.id && !fromBook(j) && new Date(j.updated_at).getTime() > S.seen;
-  const ready = !!j.ready_at && !(at && new Date(j.ready_at) >= at), why = esc((j.wait_reason || "").toLowerCase());
+  // идёт простой (интервал без конца) -- как прежнее «ждёт»
+  const iw = idleOf(j).find((x) => !x.to && !(at && new Date(x.from) >= at));
+  const readyAt = iw ? iw.from : j.ready_at;
+  const ready = !!readyAt && !(at && new Date(readyAt) >= at), why = esc((iw ? iw.r : j.wait_reason || "").toLowerCase());
   // справа -- время: на площадке / ждёт / сколько стояла; под видом работ -- статус и механик
-  const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(j.ready_at, at)}">${clock(j.ready_at, at)}</span>`
+  const tm = open && ready ? `<span class="tm" title="Ждёт ${dur(readyAt, at)}">${clock(readyAt, at)}</span>`
     : open ? `<span class="tm" title="На площадке ${dur(j.started_at, at)}">${clock(j.started_at, at)}</span>`
     : `<span class="tm" title="Стояла ${dur(j.started_at, j.ended_at)}">${clock(j.started_at, j.ended_at)}</span>`;
-  const st = open && ready ? `Готова, ждёт${why ? ` — ${why}` : ""} · ремонт ${dur(j.started_at, j.ready_at)}`
+  const st = open && ready ? `${iw ? "Простой" : "Готова, ждёт"}${why ? ` — ${why}` : ""} · ремонт ${dur(j.started_at, readyAt)}`
     : open ? `${areaOf(j) === "ТО" ? "На ТО" : "На площадке"} с ${when(j.started_at)}` : `Выехала ${when(j.ended_at)}`;
   const txt = [j.fault && "⚠ " + j.fault, j.work && "✔ " + j.work].filter(Boolean).join("\n");
   const crew = j.workers?.length ? esc(j.workers.join(", ")) : j.crew ? `${j.crew} чел.` : "", nPh = S.photos.get(j.id)?.length || 0;
@@ -838,7 +862,8 @@ function card(j, opts = {}) {
   if (j.pending) b.push(`<span class="badge amber">ждёт отправки</span>`);
   if (isAdmin() && !j.pending && j.site === EXCEL_SITE) b.push(j.rev > j.imported_rev ? `<span class="badge red">не в таблице</span>` : `<span class="badge green">в таблице</span>`);
   if (isNew) b.push(`<span class="badge red">новое</span>`);
-  if (ready && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
+  if (j.ready_at && !iw && !open) b.push(`<span class="badge amber">ожидание ${dur(j.ready_at, j.ended_at)}${why ? ` — ${why}` : ""}</span>`);
+  if (idleSum(idleOf(j))) b.push(`<span class="badge amber">простой ${minTxt(idleSum(idleOf(j)))}</span>`);
   if (j.moto) b.push(`<span class="badge">м/ч ${esc(j.moto)}</span>`);
   if (j.tmc) b.push(`<span class="badge">ТМЦ</span>`);
   return `<div class="card ${open ? (ready ? "ready" : "open") : "closed"} ${isNew ? "new" : ""}" data-act="${opts.act || "job"}" data-id="${esc(j.id)}">
@@ -1099,14 +1124,10 @@ function openJob(id, found) {   // found -- записи поиска в ист�
       <input class="inp" id="fTmcN" inputmode="numeric" value="1" aria-label="Количество, шт"></div><div id="tmcList"></div>` : ""}
     <label class="f">Примечание</label><input class="inp" id="fNote" value="${esc(j?.note)}" ${dis}>
     <div id="inspBox"></div>`;
-  // ремонт закончен, машина ждёт не по нашей вине -- время готовности и причина (в таблицу -- примечанием)
-  const wr = j?.wait_reason || "", other = !!wr && !WAITS.includes(wr);
-  S.edit.wait = other ? "Другое" : wr;
-  const readySec = j ? `<label class="f">Готова к выезду — ждёт не по нашей вине</label>
-    <div class="chips" id="fWait">${[...WAITS, "Другое"].map((w) => `<button class="chip ${w === S.edit.wait ? "on" : ""}" data-act="wait" data-v="${w}" ${dis}>${w}</button>`).join("")}</div>
-    <input class="inp" id="fWaitOther" style="margin-top:8px" placeholder="Чего ждёт машина" value="${other ? esc(wr) : ""}" ${dis} ${S.edit.wait === "Другое" ? "" : "hidden"}>
-    <div class="timebox" style="margin-top:8px"><input type="hidden" id="fReady" value="${toInput(j.ready_at)}">${tBtn("fReady", "Готова с", dis)}
-      <button class="btn" data-act="unready" ${dis}>Не ждёт</button></div>` : "";
+  // простой не по нашей вине -- одной строкой, интервалы на отдельном экране
+  S.edit.idle = idleOf(j).map((x) => ({ ...x, n: x.n || "" })); S.edit.idleI = null;
+  const idleSec = j ? `<label class="f">Простой не по нашей вине</label><button class="inp idlesum" id="idleSum" data-act="idleopen"></button>` : "";
+  $("#idlePanel").hidden = true; $("#panel").hidden = false;
   $("#panel").innerHTML = `<div class="head"><button class="nb" data-act="${found ? "foundback" : "close"}">${can ? "Отмена" : found ? "Назад" : "Закрыть"}</button>
       <b>${j ? "Машина " + esc(j.gar) : "Заезд машины"}${j ? `<small>${esc(j.mechanic_name || "")}</small>` : ""}</b>
       ${j && can ? `<button class="nb r" data-act="savejob">Сохранить</button>` : "<span></span>"}</div>
@@ -1127,7 +1148,7 @@ function openJob(id, found) {   // found -- записи поиска в ист�
     <label class="f">Неисправность / что выявлено</label><textarea class="inp" id="fFault" ${dis}>${esc(j?.fault)}</textarea>
     ${j ? "" : `<div class="pnote">📷 Фото можно добавить сразу после «Отметить заезд» — откройте запись</div>`}
     ${j ? more : `<details class="more" id="more"><summary>Дополнительно <small>работы, м/ч, ТМЦ</small></summary>${more}</details>`}
-    ${readySec}
+    ${idleSec}
     ${j ? `<label class="f">Время выезда</label>
       <div class="timebox"><input type="hidden" id="fEnd" value="${toInput(j.ended_at)}">${tBtn("fEnd", "Время выезда", dis)}
       <button class="btn" data-act="now" data-for="fEnd" ${dis}>Сейчас</button></div>` : ""}
@@ -1135,8 +1156,9 @@ function openJob(id, found) {   // found -- записи поиска в ист�
     ${can ? `<div class="actions bar">${j ? `<button class="btn ${j.ended_at ? "red" : ""}" data-act="savejob">Сохранить</button>${!j.ended_at ? `<button class="btn red" data-act="exit">Выехала сейчас</button>` : ""}`
       : `<button class="btn red" data-act="savejob">Отметить заезд</button>`}</div>` : ""}`;
   $("#sheet").hidden = false;
-  ["fStart", "fReady", "fEnd"].forEach(tShow);
-  drawGars(); drawTo(); drawSteps(); drawInsp();
+  ["fStart", "fEnd"].forEach(tShow);
+  drawGars(); drawTo(); drawSteps(); drawInsp(); drawIdleSum();
+  const fa = $("#fFault"); fitTa(fa); fa.addEventListener("input", () => fitTa(fa));   // неисправность растёт по строкам
   $("#inspBox").addEventListener("input", (ev) => { if (ev.target.dataset.pin) S.edit.insp[ev.target.dataset.pin] = ev.target.value; });
   $("#fGar").addEventListener("input", (e) => { S.edit.gar = e.target.value.replace(/\D/g, ""); e.target.value = S.edit.gar; drawGars(); });
   $("#fTmcQ")?.addEventListener("input", drawTmc);
@@ -1152,6 +1174,40 @@ function openJob(id, found) {   // found -- записи поиска в ист�
   if (!j) setTimeout(() => $("#fGar").focus(), 50);
 }
 function fitTa(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 2 + "px"; }   // +2 — рамка (border-box)
+// ---------- простои: строка в карточке и экран интервалов ----------
+function drawIdleSum() {
+  const box = $("#idleSum"); if (!box) return;
+  const l = S.edit.idle, n = l.length, go = l.some((x) => !x.to), s = idleSum(l);
+  box.innerHTML = `<span class="t">${n ? `${n} ${n === 1 ? "интервал" : n < 5 ? "интервала" : "интервалов"}` : "Нет"}<small>${S.edit.can ? (n ? "Посмотреть или добавить" : "Добавить") : n ? "Посмотреть" : ""}</small></span>
+    <span class="d">${go ? "идёт" : s ? minTxt(s) : ""} ›</span>`;
+}
+const idleWhen = (x) => `${fmt(x.from)} – ${x.to ? (dm(new Date(x.to)) === dm(new Date(x.from)) ? hm(new Date(x.to)) : fmt(x.to)) : "…"}`;
+function idleSync() {   // значения открытой строки -- в список
+  const e = S.edit, x = e.idleI === null ? null : e.idle[e.idleI]; if (!x) return;
+  x.from = fromInput($("#idleFrom").value) || x.from; x.to = fromInput($("#idleTo").value); x.n = $("#idleNote").value.trim();
+}
+function drawIdle() {
+  const e = S.edit, can = e.can, g = $("#fGar").value || e.gar;
+  const rows = e.idle.map((x, i) => {
+    const open = can && e.idleI === i;
+    return `<div class="work"><div class="idlerow" ${can ? `data-act="idlerow" data-i="${i}"` : ""}><span class="t"><b>${esc(x.r || "Причина не выбрана")}</b><small>${idleWhen(x)}${x.n ? " · " + esc(x.n) : ""}</small></span>
+      <span class="d ${x.to ? "" : "go"}">${x.to ? minTxt(idleMin(x)) : "идёт"}</span></div>
+      ${!open ? "" : `<div class="idlelab">Причина</div>
+        <div class="chips">${IDLE.map((r) => `<button class="chip ${r === x.r ? "on" : ""}" data-act="idlereason" data-v="${r}">${r}</button>`).join("")}</div>
+        <div class="idlelab">Начало</div>
+        <div class="timebox"><input type="hidden" id="idleFrom" value="${toInput(x.from)}">${tBtn("idleFrom", "Начало простоя", "")}<button class="btn" data-act="now" data-for="idleFrom">Сейчас</button></div>
+        <div class="idlelab">Конец (пока ждёт, оставьте пустым)</div>
+        <div class="timebox"><input type="hidden" id="idleTo" value="${toInput(x.to)}">${tBtn("idleTo", "Конец простоя", "")}<button class="btn" data-act="now" data-for="idleTo">Сейчас</button></div>
+        <div class="idlelab">Примечание</div>
+        <input class="inp" id="idleNote" style="background:var(--chip)" placeholder="Например: после диагностики" value="${esc(x.n)}">
+        <div class="idlebtns"><button class="btn" data-act="idledel" data-i="${i}">Убрать</button><button class="btn red" data-act="idlerow" data-i="${i}">Готово</button></div>`}</div>`;
+  }).join("");
+  $("#idlePanel").innerHTML = `<div class="head"><button class="nb" data-act="idleback">Назад</button><b>Простои<small>Машина ${esc(g)}</small></b><span></span></div>
+    ${rows || `<div class="pnote">${can ? "Простоев нет." : "Простоев не отмечено."}</div>`}
+    ${e.idle.length ? `<div class="idletot"><span>Всего</span><b>${minTxt(idleSum(e.idle))}</b></div>` : ""}
+    ${can ? `<button class="addw" data-act="idleadd">＋ Добавить простой</button><div class="pnote">Запишется кнопкой «Сохранить» в карточке.</div>` : ""}`;
+  ["idleFrom", "idleTo"].forEach(tShow);
+}
 function drawGars() {
   const e = S.edit, q = e.gar, busy = new Set(allJobs().filter((x) => !x.ended_at && x.id !== e.j?.id).map((x) => x.gar));
   const xs = S.machines.filter((m) => (m.active || m.gar === q) && (!q || m.gar.startsWith(q)));
@@ -1232,7 +1288,7 @@ function drawSteps() {
       <div class="who"></div>
       <input class="inp" data-sf="wq" style="margin-top:8px" placeholder="Найти исполнителя: фамилия" autocomplete="off">
     </div>`).join("");
-  e.steps.forEach((w, i) => { drawStTot(i); drawStWho(i); });
+  e.steps.forEach((w, i) => { drawStTot(i); drawStWho(i); fitTa(stBox(i).querySelector('textarea[data-sf="t"]')); });
   box.querySelectorAll("textarea").forEach((ta) => fitTa(ta));
   drawStRows();
 }
@@ -1420,7 +1476,7 @@ const tBtn = (id, title, dis) => `<button class="inp tval" data-act="tpick" data
 function tShow(id) {
   const b = document.querySelector(`.tval[data-for="${id}"]`); if (!b) return;
   const v = $("#" + id).value, d = v && new Date(v);
-  b.textContent = v ? `${dayName(d)}, ${hm(d)}` : id === "fEnd" ? "не выехала" : "—"; b.classList.toggle("nil", !v);
+  b.textContent = v ? `${dayName(d)}, ${hm(d)}` : id === "fEnd" ? "не выехала" : id === "idleTo" ? "идёт" : "—"; b.classList.toggle("nil", !v);
 }
 function setStTime(i, f, v) {
   S.edit.steps[i][f] = v;
@@ -1454,7 +1510,7 @@ function openTp(t) {
     const id = t.dataset.for, v = $("#" + id).value, cur = v ? new Date(v) : new Date();
     const ago = Math.round((midnight(new Date()) - midnight(cur)) / 864e5), back = Math.max(7, ago);
     const days = Array.from({ length: back + 2 }, (_, k) => { const d = midnight(new Date()); d.setDate(d.getDate() - back + k); return d; });
-    TP = { id, days }; $("#tpTitle").textContent = t.dataset.t; $("#tpClear").hidden = !(id === "fEnd" && v);
+    TP = { id, days }; $("#tpTitle").textContent = t.dataset.t; $("#tpClear").hidden = !((id === "fEnd" || id === "idleTo") && v);
     box.append(wheel(days.map(dayName), Math.min(days.length - 1, Math.max(0, back - ago)), "day"), wheel(H, cur.getHours()), colon(), wheel(M, mi(cur.getMinutes())));
   }
   $("#tpick").hidden = false;
@@ -1463,11 +1519,11 @@ function openTp(t) {
 function doneTp() {
   const ws = [...$("#wheels").querySelectorAll(".wheel")].map((w) => Math.min(w.querySelectorAll(".it").length - 1, Math.max(0, Math.round(w.scrollTop / WH))));
   if (TP.f) setStTime(TP.i, TP.f, `${pad2(ws[0])}:${pad2(ws[1] * MSTEP)}`);
-  else { const d = TP.days[ws[0]]; $("#" + TP.id).value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(ws[1])}:${pad2(ws[2] * MSTEP)}`; tShow(TP.id); }
+  else { const d = TP.days[ws[0]]; $("#" + TP.id).value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(ws[1])}:${pad2(ws[2] * MSTEP)}`; tShow(TP.id); if (TP.id.startsWith("idle")) { idleSync(); drawIdle(); } }
   closeTp();
 }
 function closeTp() { $("#tpick").hidden = true; TP = null; }
-function closeSheet() { $("#sheet").hidden = true; S.edit = null; }
+function closeSheet() { $("#sheet").hidden = true; $("#idlePanel").hidden = true; $("#panel").hidden = false; S.edit = null; }
 function saveJob(exitNow) {
   const e = S.edit, j = e.j;
   // пока карточка была открыта: запись удалили или её изменил другой сотрудник (иначе его изменения затёрлись бы)
@@ -1487,12 +1543,19 @@ function saveJob(exitNow) {
   if (ended && Math.floor(new Date(ended) / 60000) <= Math.floor(new Date(started) / 60000)) return toast("Выезд должен быть позже заезда (хотя бы на минуту)", true);
   if (new Date(started) > new Date(Date.now() + 10 * 60000)) return toast("Время заезда в будущем — проверьте", true);
   if (ended && new Date(ended) > new Date(Date.now() + 10 * 60000)) return toast("Время выезда в будущем — проверьте", true);
-  const ready = j ? fromInput($("#fReady").value) : null;
-  const wait = !ready ? "" : e.wait === "Другое" ? $("#fWaitOther").value.trim() : e.wait;
-  if (ready && !wait) return toast("Укажите, чего ждёт машина", true);
-  if (ready && new Date(ready) < new Date(started)) return toast("Готовность раньше заезда — проверьте время", true);
-  if (ready && ended && new Date(ended) < new Date(ready)) return toast("Выезд раньше готовности — проверьте время", true);
-  if (ready && new Date(ready) > new Date(Date.now() + 10 * 60000)) return toast("Время готовности в будущем — проверьте", true);
+  // простои: при выезде незакрытый интервал заканчивается выездом; по минутам, как таблицы
+  const mn = (iso) => Math.floor(new Date(iso) / 60000), soon = Date.now() + 10 * 60000;
+  const idle = (e.idle || []).map((x) => ({ u: x.u, r: x.r, from: x.from, to: x.to || ended || null, n: (x.n || "").trim() }));
+  for (const x of idle) {
+    if (!x.r) return toast("Простой: выберите причину", true);
+    if (x.r === "Другое" && !x.n) return toast("Простой: напишите в примечании, чего ждала машина", true);
+    if (mn(x.from) < mn(started)) return toast(`Простой (${x.r}) начался раньше заезда — проверьте время`, true);
+    if (new Date(x.from) > new Date(soon) || (x.to && new Date(x.to) > new Date(soon))) return toast(`Простой (${x.r}): время в будущем — проверьте`, true);
+    if (x.to && mn(x.to) <= mn(x.from)) return toast(`Простой (${x.r}): конец должен быть позже начала`, true);
+    if (x.to && ended && mn(x.to) > mn(ended)) return toast(`Простой (${x.r}) закончился позже выезда — проверьте время`, true);
+  }
+  const byFrom = [...idle].sort((a, b) => new Date(a.from) - new Date(b.from));
+  for (let i = 1; i < byFrom.length; i++) if (!byFrom[i - 1].to || mn(byFrom[i].from) < mn(byFrom[i - 1].to)) return toast("Простои пересекаются по времени — проверьте", true);
   const motoS = $("#fMoto").value.replace(",", ".").trim();
   if (motoS && !/^\d+(\.\d+)?$/.test(motoS)) return toast("Моточасы — числом", true);
   const insp = {};
@@ -1510,8 +1573,9 @@ function saveJob(exitNow) {
     .filter((w) => w.t || w.from || w.to || w.who.length);
   const workers = [...new Set(steps.flatMap((w) => w.who))];
   const data = { gar, area: e.area, inspect: Object.keys(insp).length ? insp : null, kind: e.kind, started_at: started, ended_at: ended, fault: cap($("#fFault").value), work: steps.map((w) => w.t).filter(Boolean).join("\n"),
-    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: ready, wait_reason: wait,
+    moto: motoS ? +motoS : null, tmc: $("#fTmc").value.trim(), note: $("#fNote").value.trim(), ready_at: j?.ready_at ?? null, wait_reason: j?.wait_reason || "",
     steps: steps.length ? steps : null, workers, crew: people(workers).length ? Math.min(people(workers).length, 20) : (j?.crew ?? null) };
+  if (j) data.idle = idle.length ? idle : null;
   rememberWorkers(people(steps.at(-1)?.who || []));
   if (!j) {
     const dup = allJobs().find((x) => !x.ended_at && x.gar === gar);
@@ -1656,7 +1720,13 @@ document.addEventListener("click", async (ev) => {
     case "tpick": openTp(t); break;
     case "tpcancel": closeTp(); break;
     case "tpdone": doneTp(); break;
-    case "tpclear": if (TP.f) setStTime(TP.i, TP.f, ""); else { $("#" + TP.id).value = ""; tShow(TP.id); } closeTp(); break;
+    case "tpclear": if (TP.f) setStTime(TP.i, TP.f, ""); else { $("#" + TP.id).value = ""; tShow(TP.id); if (TP.id.startsWith("idle")) { idleSync(); drawIdle(); } } closeTp(); break;
+    case "idleopen": S.edit.idleI = null; drawIdle(); $("#panel").hidden = true; $("#idlePanel").hidden = false; $("#idlePanel").scrollTop = 0; break;
+    case "idleback": idleSync(); S.edit.idleI = null; $("#idlePanel").hidden = true; $("#panel").hidden = false; drawIdleSum(); break;
+    case "idlerow": { idleSync(); const i = +t.dataset.i; S.edit.idleI = S.edit.idleI === i ? null : i; drawIdle(); break; }
+    case "idleadd": idleSync(); S.edit.idle.push({ u: uuid().slice(0, 8), r: "", from: new Date().toISOString(), to: null, n: "" }); S.edit.idleI = S.edit.idle.length - 1; drawIdle(); break;
+    case "idledel": S.edit.idle.splice(+t.dataset.i, 1); S.edit.idleI = null; drawIdle(); break;
+    case "idlereason": idleSync(); S.edit.idle[S.edit.idleI].r = t.dataset.v; drawIdle(); break;
     case "stpick": { const i = +t.closest(".work").dataset.i, w = S.edit.steps[i], box = stBox(i), ta = box.querySelector("textarea");
       w.t = w.t.trim() ? w.t.trim() + "; " + t.dataset.v : t.dataset.v; ta.value = w.t; fitTa(ta);
       box.querySelector('[data-sf="q"]').value = ""; drawStSug(i); break; }
@@ -1696,12 +1766,7 @@ document.addEventListener("click", async (ev) => {
     case "kind": S.edit.kind = t.dataset.v; S.edit.kindSet = true; document.querySelectorAll("#fKind .chip").forEach((c) => c.classList.toggle("on", c.dataset.v === S.edit.kind)); drawTo(); break;
     case "to": { $("#more")?.setAttribute("open", ""); const w = S.edit.steps[0], ta = stBox(0).querySelector("textarea");
       w.t = !/^ТО-\d/.test(w.t) ? (t.dataset.v + " " + w.t).trim() : w.t.replace(/^ТО-\d/, t.dataset.v); ta.value = w.t; break; }
-    case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); tShow(t.dataset.for); break;
-    case "wait": S.edit.wait = t.dataset.v; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.toggle("on", c === t));
-      $("#fWaitOther").hidden = S.edit.wait !== "Другое"; if (S.edit.wait === "Другое") $("#fWaitOther").focus();
-      if (!$("#fReady").value) { $("#fReady").value = toInput(new Date().toISOString()); tShow("fReady"); } break;
-    case "unready": S.edit.wait = ""; document.querySelectorAll("#fWait .chip").forEach((c) => c.classList.remove("on"));
-      $("#fWaitOther").hidden = true; $("#fReady").value = ""; tShow("fReady"); break;
+    case "now": $("#" + t.dataset.for).value = toInput(new Date().toISOString()); tShow(t.dataset.for); if (t.dataset.for.startsWith("idle")) { idleSync(); drawIdle(); } break;
     case "savejob": saveJob(false); break;
     case "exit": saveJob(true); break;
     // удалить может администратор и механик -- свою запись (внёс по ошибке); чужую сервер не даст (jobs_before)
@@ -1777,6 +1842,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && e.target.id === "lName") findName();
   if (e.key === "Escape" && !$("#tpick").hidden) return closeTp();
   if (e.key === "Escape" && !$("#pview").hidden) return void ($("#pview").hidden = true);
+  if (e.key === "Escape" && !$("#idlePanel").hidden) return $('#idlePanel [data-act="idleback"]').click();
   if (e.key === "Escape" && !$("#sheet").hidden) closeSheet();
 });
 // случайное касание мимо листа не закрывает заполняемую карточку (вписанное пропало бы); закрыть -- «Отмена»
