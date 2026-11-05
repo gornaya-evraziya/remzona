@@ -402,6 +402,12 @@ details.more[open] summary::after { transform: rotate(-135deg); margin-top: 4px;
 .calc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; align-items: end; }
 .calc label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
 .calc .inp { margin: 0; background: var(--chip); }
+.hero { background: var(--card); border-radius: 12px; padding: 14px; display: flex; align-items: center; gap: 14px; }
+.hero .hnum { font-size: 42px; font-weight: 700; color: var(--strong); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.hero .hnum small { font-size: 22px; font-weight: 600; }
+.hero .t { font-size: 14px; color: var(--muted); line-height: 1.35; min-width: 0; }
+.hero .t b { color: var(--text); }
+.how h2 { margin-left: 0; margin-right: 0; }
 .how { background: var(--card); border-radius: 12px; padding: 12px 14px; margin-top: 8px; font-size: 14px; }
 .how summary { cursor: pointer; color: var(--red); }
 .how p { margin: 8px 0 0; line-height: 1.45; }
@@ -431,7 +437,7 @@ const SB_URL = "https://inprxlthecccuvkjpvpo.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHJ4bHRoZWNjY3V2a2pwdnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzM1MjYsImV4cCI6MjEwODgwOTUyNn0.IucSKrdhmzzSze-VEn2Za7Bmy2BvYTeCKnnEs6LPfjs";
 const KINDS = ["Ремонт", "ТО", "Долив", "Диагностика"];
 // простой не по нашей вине (решение пользователя 04.11.2026, заменил «Готова к выезду»): интервалы в jobs.idle [{u, r, from, to, n}]; расчёт -- книга «Простои». Прежние ready_at, wait_reason сохраняются и показываются
-const IDLE = ["Ожидание водителя", "Ожидание оператора", "Ожидание тягача", "Ожидание запчастей / масла", "Ожидание мойки ДВС", "Распоряжение диспетчера", "Пересменка / обед", "Отогрев и запуск после ШРУ", "Другое"];
+const IDLE = ["Ожидание водителя", "Ожидание оператора", "Ожидание тягача", "Ожидание запчастей / масла", "Ожидание масла заказчика", "Ожидание мойки ДВС", "Распоряжение диспетчера", "Пересменка / обед", "Отогрев и запуск после ШРУ", "Другое"];
 const idleOf = (j) => (Array.isArray(j?.idle) ? j.idle : []);
 const idleMin = (x) => (x.to ? Math.max(0, Math.floor(new Date(x.to) / 60000) - Math.floor(new Date(x.from) / 60000)) : 0);
 const idleSum = (list) => list.reduce((s, x) => s + idleMin(x), 0);
@@ -862,7 +868,7 @@ async function enter() {
 
 // ---------- аналитика (администратор): КТГ, работа ремзоны и простой не по нашей вине ----------
 // данные -- записи участка за 7 / 30 суток (отдельный запрос: в ленте только последние сутки×3)
-const ANA = { days: 30, rows: null, at: 0, err: "", sel: null, wait: 0 };
+const ANA = { days: 7, more: false, rows: null, at: 0, err: "", sel: null };
 async function loadAna() {
   const since = new Date(Date.now() - ANA.days * 86400000); since.setHours(0, 0, 0, 0);
   const { data, error } = await sb.from("jobs").select("*").eq("deleted", false).eq("site", S.me.site).or(`ended_at.is.null,ended_at.gte.${since.toISOString()}`)   // и начатые раньше периода: незакрытые или закрытые внутри него
@@ -875,32 +881,38 @@ const hrs = (ms) => ms / 3600000;
 const f1 = (x) => (Math.round(x * 10) / 10).toLocaleString("ru-RU");
 // Время машины на ремзоне (заезд -> выезд) делится на три части, как в отраслевой методике учёта времени горной техники (GMG):
 //   работа ремзоны      -- время на площадке минус отмеченные простои не по нашей вине;
-//   внешние задержки    -- простой не по нашей вине, когда машина ещё неисправна (запчасти, тягач, мойка, отогрев, другое);
+//   внешние задержки    -- простой не по нашей вине, когда машина ещё неисправна (масло заказчика, тягач, мойка, отогрев, другое);
 //   исправна, ждёт      -- простой, когда машина исправна (водитель, оператор, диспетчер, пересменка): по определению КТГ она готова.
 // КТГ = 1 − (работа ремзоны + внешние задержки) / (машин в парке × часов периода). Прежние записи без jobs.idle -- ready_at → выезд.
 const IDLE_READY = ["Ожидание водителя", "Ожидание оператора", "Распоряжение диспетчера", "Пересменка / обед", "Нет водителя"];
+const IDLE_OURS = ["Ожидание запчастей / масла"];   // запчасти наши: в простой не по нашей вине не идёт, время остаётся работой ремзоны
 function anaCalc(js, from, to) {
   const clip = (a, b) => Math.max(0, Math.min(b, to) - Math.max(a, from));
-  const per = new Map(), reasons = new Map(), repOf = new Map();
+  const per = new Map(), reasons = new Map(), repOf = new Map(), cats = { long: 0 }, longCars = new Set();
+  let ph = 0, noCrew = 0;   // чел-ч простоя; часы простоя, где число людей не указано
   for (const j of js) {
     const s = +new Date(j.started_at), e = j.ended_at ? +new Date(j.ended_at) : to;
     let iv = idleOf(j).map((x) => ({ r: x.r || "Другое", a: +new Date(x.from), b: x.to ? +new Date(x.to) : e }));
     if (!iv.length && j.ready_at) iv = [{ r: j.wait_reason || "Другое", a: +new Date(j.ready_at), b: e }];
     let ready = 0, ext = 0;
+    const crew = +j.crew || (j.workers || []).filter((w) => w !== REP).length;
     for (const x of iv) {
-      const d = clip(Math.max(x.a, s), Math.min(x.b, e)); if (!d) continue;
+      const d = clip(Math.max(x.a, s), Math.min(x.b, e)); if (!d || IDLE_OURS.includes(x.r)) continue;
       if (IDLE_READY.includes(x.r)) ready += d; else ext += d;
+      if (crew) ph += d / 3600000 * crew; else noCrew += d / 3600000;
       const o = reasons.get(x.r) || { t: x.r, v: 0, n: 0, ready: IDLE_READY.includes(x.r) }; o.v += d / 3600000; o.n++; reasons.set(x.r, o);
     }
     const stay = clip(s, e), idle = Math.min(stay, ready + ext);
     const o = per.get(j.gar) || { gar: j.gar, rep: 0, ext: 0, ready: 0, n: 0, reps: [] };
+    if (e - s >= LONG_MS) { cats.long += stay - idle; if (stay - idle > 0) longCars.add(j.gar); } else cats[j.kind] = (cats[j.kind] || 0) + stay - idle;
+    if (stay - idle > (o.top || 0)) { o.top = stay - idle; o.fault = j.fault; }
     o.rep += stay - idle; o.ext += Math.min(ext, idle); o.ready += idle - Math.min(ext, idle); o.n++;
     if (j.kind === "Ремонт") o.reps.push(j);
     per.set(j.gar, o);
     repOf.set(j.id, Math.max(0, stay - idle));   // для среднего времени работ (без простоев)
   }
   const cars = [...per.values()], sum = (k) => cars.reduce((a, c) => a + c[k], 0);
-  return { cars, rep: sum("rep"), ext: sum("ext"), ready: sum("ready"), reasons: [...reasons.values()].sort((a, b) => b.v - a.v), repOf };
+  return { cars, rep: sum("rep"), ext: sum("ext"), ready: sum("ready"), reasons: [...reasons.values()].sort((a, b) => b.v - a.v), repOf, ph, noCrew, cats, longCars };
 }
 function anaHtml() {
   const per = `<div class="seg two" style="margin-top:10px">${[7, 30].map((d) => `<button class="${ANA.days === d ? "on" : ""}" data-act="anaper" data-v="${d}">${d} суток</button>`).join("")}</div>`;
@@ -913,53 +925,85 @@ function anaHtml() {
   const arrived = js.filter((j) => +new Date(j.started_at) >= ANA.at);   // заезды за период; начатые раньше считаются только во времени простоя
   const C = anaCalc(js, ANA.at, now), saved = load("rz_ana", {});
   const park = new Set([...S.machines.filter((m) => m.active).map((m) => m.gar), ...C.cars.map((c) => c.gar)]).size;   // активные в списке и заезжавшие
-  const fleet = Math.max(1, +saved["fleet_" + S.me.site] || park), cal = fleet * (now - ANA.at);
-  const ktg = 1 - (C.rep + C.ext) / cal, ktgOld = 1 - (C.rep + C.ext + C.ready) / cal, pct = (x) => `${f1(x * 100)}<small>%</small>`;
-  const notOurs = C.ext + C.ready;
+  const fleet = Math.max(1, +saved["fleet_" + S.me.site] || park), span = now - ANA.at, cal = fleet * span;
+  const bad = C.rep + C.ext, ktg = 1 - bad / cal, ktgOld = 1 - (bad + C.ready) / cal, ktgOurs = 1 - C.rep / cal, ktgNoLong = 1 - (bad - C.cats.long) / cal;
+  const notOurs = C.ext + C.ready, pct = (x) => `${f1(x * 100)}<small>%</small>`;
   const kpi = (v, l) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
-  let h = `${per}<h2>Готовность парка · ${ANA.days} суток · ${esc(S.me.site)}</h2><div class="kpis">
-    ${kpi(pct(ktg), "КТГ по методике: исправная машина в ожидании — готова")}
-    ${kpi(pct(ktgOld), "КТГ, если всё время на площадке считать неисправностью")}
-    ${kpi(`${f1(hrs(notOurs))} <small>ч</small>`, `простой не по вине ремзоны · ${Math.round(notOurs / Math.max(1, C.rep + notOurs) * 100)}% времени на площадке`)}
-    ${kpi(`${f1(hrs(C.ready))} <small>ч</small>`, "из них машина исправна и ждёт (водитель, диспетчер…)")}</div>
-    <div class="chart" style="margin-top:8px"><div class="calc"><label>Машин в парке участка
-      <input class="inp" id="anaFleet" inputmode="numeric" value="${fleet}"></label><span class="anote" style="margin:0">по умолчанию — активные в списке машин и заезжавшие (${park}); заезжали за период: ${C.cars.length}</span></div></div>`;
+  const bars = (items, fmtV, wide) => { const m = Math.max(...items.map((x) => x.v), 0.0001);
+    return items.map((x) => `<div class="hb${wide ? " wide" : ""}"><span class="t" title="${esc(x.t + (x.m ? " · " + x.m : ""))}">${esc(x.t)}${x.m ? ` <small>${esc(x.m)}</small>` : ""}</span><span class="bar"><i style="width:${Math.max(2, x.v / m * 100)}%"></i></span><span class="val">${fmtV(x)}</span></div>`).join(""); };
 
-  // заезды по суткам
+  // главное: одна цифра и сколько машин это значит
+  const notReady = Math.round(fleet * (1 - ktg)), closedEnds = js.filter((j) => j.ended_at).map((j) => +new Date(j.ended_at));
+  const dataFrom = closedEnds.length ? Math.min(...closedEnds) : now, thin = dataFrom - ANA.at > 2 * 86400000;
+  let h = `${per}<h2>Готовность парка · ${esc(S.me.site)}</h2><div class="hero"><div class="hnum">${pct(ktg)}</div>
+    <div class="t"><b>КТГ</b> — доля времени, когда машины исправны. В среднем за ${ANA.days} суток готовы <b>${fleet - notReady} из ${fleet}</b> машин, не готовы <b>${notReady}</b></div></div>
+    ${thin ? `<div class="anote">Закрытых записей раньше ${dm(new Date(dataFrom))} в приложении нет: за это время КТГ завышен</div>` : ""}`;
+
+  // куда ушло время неготовности
+  const CAT = [["long", "Долгострои", [...C.longCars].join(", ")], ["Ремонт", "Ремонт", ""], ["ТО", "ТО", ""], ["Диагностика", "Диагностика", ""], ["Долив", "Долив", ""]];
+  const items = CAT.map(([k, t, m]) => ({ t, m, v: hrs(C.cats[k] || 0) })).filter((x) => x.v > 0.05);
+  if (C.ext > 0) items.push({ t: "Задержки не по нашей вине", m: "", v: hrs(C.ext) });
+  items.sort((a, b) => b.v - a.v);
+  h += `<h2>Куда ушло время · ${f1(hrs(bad))} ч</h2><div class="chart">${bars(items, (x) => `${f1(x.v)} ч · ${Math.round(x.v / hrs(bad) * 100)}%`, true)}</div>`;
+  if (C.cats.long > 0) h += `<div class="anote">Если бы долгостроев не было: КТГ ${f1(ktgNoLong * 100)}%</div>`;
+
+  // машины, которые больше всего снижают КТГ
+  const firstLine = (s) => String(s || "").split("\n")[0].slice(0, 60);
+  const worst = [...C.cars].sort((a, b) => b.rep + b.ext - a.rep - a.ext).slice(0, 6).map((c) => ({ t: c.gar, m: firstLine(c.fault), v: hrs(c.rep + c.ext) }));
+  h += `<h2>Что снижает КТГ сильнее всего</h2><div class="chart">${bars(worst, (x) => `${f1(x.v)} ч`)}</div>`;
+
+  const model = (g) => S.machines.find((c) => c.gar === g)?.model || "";
+  // где подтянуть: всё из записей участка; ничего, чего нет в данных, не советуем
+  h += `<h2>Где подтянуть</h2>`;
+  const lost = (j) => C.repOf.get(j.id) || 0;
+  const faultOf = (j) => String(j.fault || "");
+  const isLong = (j) => (j.ended_at ? +new Date(j.ended_at) : now) - +new Date(j.started_at) >= LONG_MS;
+  const group = (xs, keyOf) => { const m = new Map();
+    for (const j of xs) { const k = keyOf(j); if (!k) continue; const o = m.get(k) || { t: k, v: 0, n: 0, cars: new Set() }; o.v += hrs(lost(j)); o.n++; o.cars.add(j.gar); m.set(k, o); }
+    return [...m.values()].filter((x) => x.v > 0.05).sort((a, b) => b.v - a.v); };
+
+  // что держит долгострои: поставка, нет работ или идёт ремонт
+  const WAIT_RE = /ожидани\S*\s+(поставк\S*|двс|запчаст\S*|тмц)/i, IDLE_RE = /без воздействия/i;
+  const longJ = js.filter(isLong);
+  const holds = group(longJ, (j) => WAIT_RE.test(faultOf(j)) ? "Ждут поставку" : IDLE_RE.test(faultOf(j)) ? "Стоят без работ" : "Идёт долгий ремонт");
+  if (holds.length) h += `<div class="cap" style="margin-top:8px"><b>Что держит долгострои</b></div><div class="chart">${bars(holds.map((x) => ({ ...x, m: [...x.cars].join(", ") })), (x) => `${f1(x.v)} ч`, true)}</div>`;
+
+  // узлы: по словам в тексте неисправности, поэтому примерно; ждущие поставку и стоящие без работ не входят
+  const NODES = [["АЦСС", /ацсс|смазк/i], ["ДВС", /двс|spn|мощност|87\/1|тяг/i], ["Тяговая электрика GE", /(^|[^a-z])ge([^a-z]|$)|igbt/i], ["ПЖД", /пжд/i], ["Пожаротушение", /пожаротуш|ansul/i],
+    ["Гидравлика", /гидравл/i], ["Охлаждение", /радиатор|водян/i], ["Подвеска, ПГП", /пгп|шсл|азот/i], ["Весовая система", /весов/i], ["Рама, крепёж, сварка", /сварк|болт|хомут/i]];
+  const rep0 = js.filter((j) => (j.kind === "Ремонт" || j.kind === "Диагностика") && !WAIT_RE.test(faultOf(j)) && !IDLE_RE.test(faultOf(j)));
+  const nodes = group(rep0, (j) => { const x = faultOf(j) || String(j.work || ""); if (!x) return "Не указано"; return (NODES.find(([, re]) => re.test(x)) || ["Другое"])[0]; });
+  if (nodes.length) h += `<div class="cap" style="margin-top:12px"><b>Какие узлы отнимают время</b> — примерно, по словам в тексте неисправности</div><div class="chart">${bars(nodes.slice(0, 8).map((x) => ({ ...x, m: `${x.n} зап.` })), (x) => `${f1(x.v)} ч`, true)}</div>`;
+
+  // машины, которые заезжают снова и снова
+  const often = group(rep0, (j) => j.gar).filter((x) => x.n >= 3).sort((a, b) => b.n - a.n || b.v - a.v).slice(0, 6);
+  if (often.length) h += `<div class="cap" style="margin-top:12px"><b>Чаще всего в ремонте</b> — 3 записи и больше, без ТО и долива</div><div class="chart">${bars(often.map((x) => ({ ...x, m: model(x.t) })), (x) => `${x.n} зап. · ${f1(x.v)} ч`, true)}</div>`;
+
+  // чего не хватает в записях: без этого анализ неточен
+  const noFault = rep0.filter((j) => !j.fault && !j.work).length, withCrew = (j) => +j.crew || (j.workers || []).length;
+  const noCrewRec = rep0.filter((j) => !withCrew(j)).length, idleN = js.filter((j) => idleOf(j).length || j.ready_at).length;
+  h += `<div class="cap" style="margin-top:12px"><b>Что не заполнено в записях</b> — ремонт и диагностика, всего ${rep0.length}</div><div class="anote">Без неисправности и работ: ${noFault}. Без числа людей: ${noCrewRec}. Отмечено простоев не по нашей вине: ${idleN}${idleN ? "" : " — всё время машины на площадке сейчас считается работой ремзоны"}.</div>`;
+
+  // простой не по нашей вине
+  const rs = C.reasons.map((x) => ({ ...x, m: x.ready ? "исправна, ждёт" : "задержка ремонта" }));
+  h += `<h2>Простой не по нашей вине</h2><div class="kpis">
+    ${kpi(`${f1(hrs(notOurs))} <small>ч</small>`, "к снятию с нас, решает заказчик")}
+    ${kpi(`${f1(C.ph)} <small>чел-ч</small>`, "простой бригады, верхняя оценка")}</div>
+    <div class="chart" style="margin-top:8px">${rs.length ? bars(rs, (x) => `${f1(x.v)} ч · ${x.n}`, true) : `<div class="cap">За период простоев не отмечено. Механики отмечают их в карточке записи («Простой не по нашей вине»), иначе это время считается работой ремзоны</div>`}
+    <div class="anote">КТГ, если всё время на площадке записать на нас: ${f1(ktgOld * 100)}%; без простоев не по нашей вине: ${f1(ktgOurs * 100)}%${C.noCrew > 0.05 ? `. В чел-ч не вошло ${f1(C.noCrew)} ч: в записях не указано число людей` : ""}</div></div>`;
+
+  h += `<details class="how"><summary>Как считается</summary><p><b>КТГ</b> = 1 − часы неготовности ÷ (машин в парке × часов в периоде).
+    <b>Часы неготовности</b> — время машины на площадке (заезд → выезд), кроме времени, когда она исправна и ждёт водителя, оператора или диспетчера.
+    <b>Долгострой</b> — запись дольше суток. <b>Парк</b> — активные машины из списка и заезжавшие.
+    Поломка до заезда на площадку не считается: приложение видит машину только с заезда. КТГ заказчика может считаться иначе.</p></details>`;
+
+  // подробности
   const days = [], d0 = new Date(ANA.at);
   for (let i = 0; i < ANA.days + 1; i++) { const d = new Date(d0); d.setDate(d.getDate() + i); if (d > now) break; days.push({ d, n: 0 }); }
   for (const j of arrived) { const k = Math.floor((new Date(j.started_at) - d0) / 86400000); const x = days[Math.min(Math.max(k, 0), days.length - 1)]; if (x) x.n++; }
   const mx = Math.max(1, ...days.map((x) => x.n)), sel = ANA.sel != null ? days[ANA.sel] : null;
-  h += `<h2>Заезды по суткам · ${arrived.length}</h2><div class="chart"><div class="cap">${sel ? `${dayTitleTxt(sel.d)}: <b>${sel.n}</b> заездов` : `в среднем ${f1(arrived.length / days.length)} в сутки, максимум ${mx} — нажмите на столбик`}</div>
-    <div class="cols" role="img" aria-label="Заезды по суткам">${days.map((x, i) => `<button class="${ANA.sel === i ? "on" : ""}" data-act="anabar" data-i="${i}" title="${dm(x.d)}: ${x.n}"><i style="height:${x.n / mx * 100}%"></i></button>`).join("")}</div>
-    <div class="axis"><span>${dm(days[0].d)}</span><span>${dm(days[days.length - 1].d)}</span></div></div>`;
-
-  const bars = (items, fmtV, wide) => { const m = Math.max(...items.map((x) => x.v), 0.0001);
-    return items.map((x) => `<div class="hb${wide ? " wide" : ""}"><span class="t" title="${esc(x.t + (x.m ? " · " + x.m : ""))}">${esc(x.t)}${x.m ? ` <small>${esc(x.m)}</small>` : ""}</span><span class="bar"><i style="width:${Math.max(2, x.v / m * 100)}%"></i></span><span class="val">${fmtV(x)}</span></div>`).join(""); };
-
-  // простои по причинам
-  const rs = C.reasons.map((x) => ({ ...x, m: x.ready ? "исправна, ждёт" : "задержка ремонта" }));
-  h += `<h2>Простой не по нашей вине — по причинам</h2><div class="chart">${rs.length ? bars(rs, (x) => `${f1(x.v)} ч · ${x.n}`, true) : `<div class="cap">За период простоев не отмечено. Отмечайте их в карточке («Простой не по нашей вине») — иначе это время считается работой ремзоны</div>`}</div>`;
-
-  // калькулятор: часы ожидания -> недовезённые тонны -> рубли (свои цифры предприятия)
-  const tph = +saved.tph || 0, rub = +saved.rub || 0;
-  h += `<h2>Цена простоя не по нашей вине</h2><div class="chart" id="anaCalc"><div class="calc">
-    <label>Тонн в час на машину<input class="inp" id="anaTph" inputmode="decimal" value="${tph || ""}" placeholder="например, 250"></label>
-    <label>₽ за тонну (маржа)<input class="inp" id="anaRub" inputmode="decimal" value="${rub || ""}" placeholder="например, 120"></label></div>
-    <div class="cap" id="anaOut" style="margin-top:8px"></div>
-    <div class="anote">${f1(hrs(notOurs))} ч простоя × тонн в час × ₽ за тонну. Цифры — ваши, хранятся только в этом телефоне</div></div>`;
-
-  // время работ по видам
   const closed = arrived.filter((j) => j.ended_at), repair = (j) => C.repOf.get(j.id) || 0;
   const kinds = KINDS.map((k) => { const xs = closed.filter((j) => j.kind === k); return { t: k, n: xs.length, v: xs.length ? hrs(xs.reduce((a, j) => a + repair(j), 0) / xs.length) : 0 }; }).filter((x) => x.n);
-  h += `<h2>Среднее время работ по видам</h2><div class="chart">${bars(kinds, (x) => `${f1(x.v)} ч · ${x.n}`)}<div class="anote">работа ремзоны: время на площадке без простоев не по нашей вине; справа — число закрытых записей</div></div>`;
-
-  // машины с низшим КТГ
-  const span = now - ANA.at, model = (g) => S.machines.find((c) => c.gar === g)?.model || "";
-  const worst = [...C.cars].sort((a, b) => b.rep + b.ext - a.rep - a.ext).slice(0, 6).map((c) => ({ t: c.gar, m: model(c.gar), v: hrs(c.rep + c.ext), k: 1 - (c.rep + c.ext) / span, n: c.n }));
-  h += `<h2>Меньше всего готовности</h2><div class="chart">${bars(worst, (x) => `КТГ ${Math.round(x.k * 100)}% · ${f1(x.v)} ч`)}<div class="anote">часы неисправности за период (работа ремзоны и задержки ремонта); КТГ машины — доля времени, когда она была исправна</div></div>`;
-
-  // повторные заезды: машина снова в ремонте в течение 72 ч после выезда -- признак незакрытой причины
   const again = [];
   for (const c of C.cars) {
     const rs2 = c.reps.slice().sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
@@ -967,32 +1011,25 @@ function anaHtml() {
     if (k) again.push({ t: c.gar, m: model(c.gar), v: k, last: rs2[rs2.length - 1] });
   }
   again.sort((a, b) => b.v - a.v);
-  h += `<h2>Вернулись в ремонт за 72 ч · ${again.length}</h2><div class="chart">${again.length ? again.slice(0, 6).map((x) =>
-    `<div class="hb"><span class="t">${esc(x.t)} <small>${esc(x.m)}</small></span><span class="val" style="grid-column:2/4;text-align:right;white-space:normal;color:var(--muted)">${x.v} повт. · ${esc(x.last.fault || "")}</span></div>`).join("")
-    : `<div class="cap">Повторных ремонтов нет</div>`}<div class="anote">машина вернулась в ремонт меньше чем через 72 ч после выезда — кандидат на углублённую диагностику</div></div>`;
-
   const night = arrived.filter((j) => shiftOf(new Date(j.started_at)).n === 1).length;
   const xl = js.filter((j) => j.site === EXCEL_SITE), inXl = xl.filter((j) => j.imported_rev > 0 && j.imported_rev >= j.rev).length;
-  h += `<h2>Смены и Excel-книга</h2><div class="kpis">${kpi(night, "заездов ночью")}${kpi(arrived.length - night, "заездов днём")}
-    ${S.me.site === EXCEL_SITE ? kpi(`${inXl} <small>из ${xl.length}</small>`, "перенесено в Excel-книгу") : ""}${kpi(js.filter((j) => !j.ended_at).length, "сейчас на ремзоне")}</div>
-    <details class="how"><summary>Как считается</summary><p><b>КТГ</b> (коэффициент технической готовности) = 1 − часы неисправности ÷ (машин в парке × часов в периоде).
-    Время на площадке делится на три части: <b>работа ремзоны</b> — всё, кроме отмеченных простоев; <b>задержки ремонта</b> — простой не по нашей вине,
-    пока машина неисправна (запчасти, тягач, мойка, отогрев, другое); <b>исправна, ждёт</b> — водитель, оператор, диспетчер, пересменка.
-    Исправная машина в ожидании по определению КТГ технически готова. Так же разделяет время отраслевая методика учёта времени горной техники
-    (GMG Time Usage Model): простой в ремонте и ожидание исправной машины — разные категории.</p></details>`;
-  ANA.wait = notOurs; ANA.fleet = fleet;
+  h += `<details class="how" id="anaMore"><summary>Подробнее</summary>
+    <div class="calc" style="margin-top:10px"><label>Машин в парке участка<input class="inp" id="anaFleet" inputmode="numeric" value="${fleet}"></label><span class="anote" style="margin:0">по умолчанию ${park}: активные в списке и заезжавшие. Правка хранится только в этом телефоне</span></div>
+    <h2>Заезды по суткам · ${arrived.length}</h2><div class="cap">${sel ? `${dayTitleTxt(sel.d)}: <b>${sel.n}</b> заездов` : `в среднем ${f1(arrived.length / days.length)} в сутки, максимум ${mx} — нажмите на столбик`}</div>
+    <div class="cols" role="img" aria-label="Заезды по суткам">${days.map((x, i) => `<button class="${ANA.sel === i ? "on" : ""}" data-act="anabar" data-i="${i}" title="${dm(x.d)}: ${x.n}"><i style="height:${x.n / mx * 100}%"></i></button>`).join("")}</div>
+    <div class="axis"><span>${dm(days[0].d)}</span><span>${dm(days[days.length - 1].d)}</span></div>
+    <h2>Среднее время работ по видам</h2>${bars(kinds, (x) => `${f1(x.v)} ч · ${x.n}`)}<div class="anote">без простоев не по нашей вине; справа — число закрытых записей</div>
+    <h2>Вернулись в ремонт за 72 ч · ${again.length}</h2>${again.length ? again.slice(0, 6).map((x) =>
+      `<div class="hb"><span class="t">${esc(x.t)} <small>${esc(x.m)}</small></span><span class="val" style="grid-column:2/4;text-align:right;white-space:normal;color:var(--muted)">${x.v} повт. · ${esc(x.last.fault || "")}</span></div>`).join("")
+      : `<div class="cap">Повторных ремонтов нет</div>`}
+    <h2>Смены и Excel-книга</h2><div class="kpis">${kpi(night, "заездов ночью")}${kpi(arrived.length - night, "заездов днём")}
+    ${S.me.site === EXCEL_SITE ? kpi(`${inXl} <small>из ${xl.length}</small>`, "перенесено в Excel-книгу") : ""}${kpi(js.filter((j) => !j.ended_at).length, "сейчас на ремзоне")}</div></details>`;
+  ANA.fleet = fleet;
   return h;
 }
 function anaBind() {
   if (document.activeElement?.id !== "anaFleet") $("#anaFleet").value = ANA.fleet;   // render() возвращает прежние значения полей, а парк зависит от периода
-  const out = () => {
-    const tph = parseFloat(($("#anaTph").value || "").replace(",", ".")) || 0, rub = parseFloat(($("#anaRub").value || "").replace(",", ".")) || 0;
-    const s = load("rz_ana", {}); s.tph = tph; s.rub = rub; save("rz_ana", s);
-    const t = hrs(ANA.wait || 0) * tph;
-    $("#anaOut").innerHTML = tph && rub ? `Недовезено ≈ <b>${Math.round(t).toLocaleString("ru-RU")} т</b> · ≈ <b>${Math.round(t * rub).toLocaleString("ru-RU")} ₽</b> за ${ANA.days} суток`
-      : "Введите обе цифры — посчитаю, во что обошлось ожидание";
-  };
-  $("#anaTph").addEventListener("input", out); $("#anaRub").addEventListener("input", out); out();
+  const more = $("#anaMore"); more.open = ANA.more; more.addEventListener("toggle", () => { ANA.more = more.open; });
   $("#anaFleet").addEventListener("change", (e) => {
     const s = load("rz_ana", {}), v = parseInt(e.target.value, 10); s["fleet_" + S.me.site] = v > 0 ? v : 0; save("rz_ana", s); render();
   });
@@ -1167,7 +1204,7 @@ function render() {
   $("#app").innerHTML = h + CREDIT;
   keep.forEach(([id, v]) => { const el = document.getElementById(id); if (el?.closest("#app")) el.value = v; });
   if ($("#nwQ")) { $("#nwQ").addEventListener("input", drawWkAdmin); drawWkAdmin(); }
-  if ($("#anaCalc")) anaBind();
+  if ($("#anaFleet")) anaBind();
   renderConn(); hideSplash();
 }
 // ---------- недавно удалённые (03.11.2026, просьба пользователя: удалили заезд по ошибке -- вернуть): сервер хранит 30 суток ----------
